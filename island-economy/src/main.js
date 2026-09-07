@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, buildBasket, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO, addFood, foodFreshness, workerHealthMul, useHerb } from './game.js';
+import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, buildBasket, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO, addFood, foodFreshness, workerHealthMul, useHerb, TECH_TREE, getCurrentGoal } from './game.js';
 
 const g = newGame();
 
@@ -1615,6 +1615,10 @@ function updateHUD() {
   // 草药
   const herbEl = $('herbs');
   if (herbEl) herbEl.textContent = g.herbs || 0;
+  // 目标追踪
+  const goal = getCurrentGoal(g);
+  const goalTextEl = $('goalText');
+  if (goalTextEl) goalTextEl.textContent = goal.text;
   renderWorkerPanel();
 }
 
@@ -2146,6 +2150,29 @@ $('workerPanel').addEventListener('click', (e) => {
 
 // 开场遮罩
 $('startBtn').onclick = () => { $('overlay').classList.add('hidden'); tryLock(); };
+
+// 目标追踪:点击展开科技树
+$('goalPanel').onclick = () => {
+  const tree = $('goalTree');
+  if (!tree) return;
+  const isOpen = !tree.classList.contains('hidden');
+  if (isOpen) { tree.classList.add('hidden'); return; }
+  // 渲染科技树
+  let html = '';
+  let lastPhase = 0;
+  for (const tech of TECH_TREE) {
+    const p = tech.progress(g);
+    if (tech.phase !== lastPhase) {
+      lastPhase = tech.phase;
+      html += `<div class="tech-phase">阶段 ${tech.phase}</div>`;
+    }
+    const cls = p.done ? 'tech-done' : (tech.goal(g) ? 'tech-active' : 'tech-locked');
+    const icon = p.done ? '✅' : (tech.goal(g) ? '🔶' : '🔒');
+    html += `<div class="tech-node"><span class="tech-name">${icon} ${tech.name}</span><span class="tech-desc">${tech.desc}</span><span class="tech-status ${cls}">${p.text}</span></div>`;
+  }
+  tree.innerHTML = html;
+  tree.classList.remove('hidden');
+};
 
 // 加载存档(如果有)或开始新游戏
 let loaded = false;

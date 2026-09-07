@@ -1,6 +1,54 @@
 // game.js — 荒岛养成状态机(Phase 1: 纯养成闭环)
 // 定位:表层的"玩家在玩的养成"逻辑;底层小岛经济学(economy.js)作为隐藏引擎 Phase 2 再接入。
 
+// ---------- 科技树定义 ----------
+export const TECH_TREE = [
+  // 阶段1:原始生存
+  { id: 'basket',   name: '采集篓',     desc: '每天自动采集野生根茎', phase: 1,
+    goal: () => true, // 无前置
+    progress: (g) => ({ done: g.baskets >= 2, text: `采集篓 ${g.baskets}/2` }) },
+  // 阶段2:基础建设
+  { id: 'net',      name: '织渔网',     desc: '捕鱼效率×2', phase: 2,
+    goal: (g) => g.wood >= 2,
+    progress: (g) => ({ done: g.hasNet, text: g.hasNet ? '已完成' : `木头 ${g.wood}/2` }) },
+  { id: 'hut',      name: '盖棚屋',     desc: '每间住2人', phase: 2,
+    goal: (g) => g.wood >= 4 && g.stone >= 2,
+    progress: (g) => ({ done: g.huts >= 1, text: g.huts >= 1 ? '已完成' : `木${g.wood}/4 石${g.stone}/2` }) },
+  { id: 'granary',  name: '盖粮仓',     desc: '谷穗保鲜×2', phase: 2,
+    goal: (g) => g.wood >= 6 && g.stone >= 4,
+    progress: (g) => ({ done: g.granary >= 1, text: g.granary >= 1 ? '已完成' : `木${g.wood}/6 石${g.stone}/4` }) },
+  { id: 'dock',     name: '建码头',     desc: '捕鱼效率×3', phase: 2,
+    goal: (g) => g.wood >= 8,
+    progress: (g) => ({ done: g.dock >= 1, text: g.dock >= 1 ? '已完成' : `木头 ${g.wood}/8` }) },
+  // 阶段3:造船出海
+  { id: 'boat',     name: '造船',       desc: '解锁深海钓鱼和出海探索', phase: 3,
+    goal: (g) => g.wood >= 30 && g.stone >= 10 && g.dock >= 1,
+    progress: (g) => ({ done: g.hasBoat, text: g.hasBoat ? '已完成' : `木${g.wood}/30 石${g.stone}/10` }) },
+  { id: 'deepfish', name: '深海钓鱼',   desc: '钓到铁矿石碎片', phase: 3,
+    goal: (g) => g.hasBoat,
+    progress: (g) => ({ done: (g.ironFragments || 0) >= 3, text: `铁矿碎片 ${g.ironFragments || 0}/3` }) },
+  // 阶段4:铁器时代
+  { id: 'workbench', name: '工具台',    desc: '解锁铁器工具', phase: 4,
+    goal: (g) => g.wood >= 10 && g.stone >= 6 && (g.iron || 0) >= 3,
+    progress: (g) => ({ done: g.hasWorkbench, text: g.hasWorkbench ? '已完成' : `木${g.wood}/10 石${g.stone}/6 铁${g.iron || 0}/3` }) },
+  // 阶段5:冶炼时代
+  { id: 'furnace',  name: '冶炼炉',     desc: '生产精炼铁', phase: 5,
+    goal: (g) => (g.iron || 0) >= 5 && g.stone >= 10 && g.hasWorkbench,
+    progress: (g) => ({ done: g.hasFurnace, text: g.hasFurnace ? '已完成' : `铁${g.iron || 0}/5 石${g.stone}/10` }) },
+  // 阶段6:航海时代
+  { id: 'trader',   name: '商船',       desc: '远洋探索', phase: 6,
+    goal: (g) => (g.refinedIron || 0) >= 5 && g.wood >= 50 && g.hasFurnace,
+    progress: (g) => ({ done: g.hasTrader, text: g.hasTrader ? '已完成' : `精炼铁${g.refinedIron || 0}/5 木${g.wood}/50` }) },
+];
+// 获取当前主线目标
+export function getCurrentGoal(g) {
+  for (const tech of TECH_TREE) {
+    const p = tech.progress(g);
+    if (!p.done) return { tech, ...p };
+  }
+  return { tech: null, done: true, text: '🎉 所有科技已解锁!' };
+}
+
 export const CFG = {
   // 采集产出
   FISH_PER_CATCH: [1, 2, 3],        // 徒手 / 渔网 / 码头

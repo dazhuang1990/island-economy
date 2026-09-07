@@ -144,6 +144,34 @@ canvas { display: block; }
 #granaryPanel #gpClose { background: #455a64; color: #fff; flex: 0 0 90px; }
 #granaryPanel #gpClose:hover { background: #546e7a; }
 
+/* ==================== 目标追踪 ==================== */
+#goalPanel {
+  position: fixed; top: 12px; right: 290px;
+  background: rgba(20, 30, 40, 0.85); color: #e8f0f5;
+  padding: 8px 14px; border-radius: 8px; font-size: 13px; z-index: 10;
+  backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.12);
+  max-width: 220px; cursor: pointer;
+}
+#goalPanel:hover { border-color: rgba(255,215,102,0.5); }
+#goalCurrent { font-weight: bold; color: #ffd766; }
+#goalCurrent span { color: #8fe3a0; }
+#goalTree {
+  margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.15);
+  max-height: 300px; overflow-y: auto;
+}
+#goalTree.hidden { display: none; }
+.tech-node {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 4px 0; font-size: 12px; gap: 8px;
+}
+.tech-node .tech-name { font-weight: bold; min-width: 60px; }
+.tech-node .tech-desc { color: #9fb8c6; flex: 1; }
+.tech-node .tech-status { font-size: 11px; min-width: 50px; text-align: right; }
+.tech-done { color: #8fe3a0; }
+.tech-active { color: #ffd766; }
+.tech-locked { color: #546e7a; }
+.tech-phase { font-size: 10px; color: #546e7a; margin-top: 6px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.05); }
+
 /* ==================== 昼夜过渡动画 ==================== */
 #dayNightOverlay {
   position: fixed; inset: 0; z-index: 100;
@@ -244,6 +272,7 @@ canvas { display: block; }
   #hud { font-size: 12px; padding: 6px 10px; min-width: 180px; top: 8px; left: 8px; }
   #hud .row { line-height: 1.5; }
   #logbox { width: 180px; font-size: 11px; top: 8px; right: 8px; padding: 6px 8px; max-height: 120px; overflow-y: auto; }
+  #goalPanel { right: 8px; top: 140px; max-width: 180px; font-size: 12px; }
   #bar { bottom: 8px; gap: 4px; }
   #bar button { padding: 8px 10px; font-size: 12px; }
   #help { font-size: 10px; bottom: 50px; padding: 4px 8px; }
