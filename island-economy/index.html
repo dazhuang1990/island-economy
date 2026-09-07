@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="uyxpE35XHdngleNzmuBm0w">
+<head data-page-node-id="c6QTFTGDN1YQwRLBaJmxjw">
+  <meta charset="UTF-8" data-page-node-id="eoYrvE4d1H3pFWW1XKWWE3" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="ZfPKiRB8HWVICurpw5uVSY" />
+  <title>荒岛物语 · 小岛养成</title>
+  <link rel="stylesheet" href="./style.css" data-page-node-id="MeuStbSvvYtljhNbeNqvCf" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body data-page-node-id="25zAnwmyFNnLw564Z4aezJ">
+  <div id="app" data-page-node-id="ybYbMwVtkrEk8MuvhRfeWJ"></div>
+
+  <!-- 准星 -->
+  <div id="crosshair" data-page-node-id="pL9DyzaEfBgqDQRH4RYxlq">+</div>
+
+  <!-- 准星交互提示 -->
+  <div id="prompt" data-page-node-id="6Osdzj1segw6hKDJUFm4vz"></div>
+
+  <!-- 左上：状态 -->
+  <div id="hud" data-page-node-id="9iVJO5zWar3GVr1piO63Q9">
+    <div class="title" data-page-node-id="ztVAPMHyNIR1Ydi94kbwNe">🏝️ 荒岛物语 · 第 <span id="day" data-page-node-id="h8lsKcKrKgkJreYkICjfll">1</span> 天</div>
+    <div class="row" data-page-node-id="qZnVz9vQ9X8PALiKB7fBid">🏆 阶段：<b id="tier" data-page-node-id="SFKZgWLhSNCWrqSIMGwCc2">荒岛</b>　繁荣度 <b id="prosperity" data-page-node-id="Nx1dsQhFAHxOeH48akDnEB">0</b></div>
+    <div class="row" data-page-node-id="58FVE1nXzScjstX5213RCD">👥 人口：<b id="pop" data-page-node-id="4WSGxugR2K7on4qVZNnUQH">1</b> / 住处 <b id="house" data-page-node-id="3ZB3b3etBeNXfcSRALYrk4">0</b> 床</div>
+    <div class="row" data-page-node-id="a2B4KUFOaJVN9yNYikxA0O">🐟 鱼 <b id="fish" data-page-node-id="eiC4AdQjZiuwT9jJfHbDik">0</b>　🌾 谷穗 <b id="grain" data-page-node-id="AcNoOictNJGyuDLRmLzG9v">0</b>　(每天全岛吃 <b id="eats" data-page-node-id="biBLcgrTFou1Sku0yT63lh">1</b> 份)</div>
+    <div class="row" data-page-node-id="lCoAC8CaoiBBWI81cXLTFr">🪵 木头 <b id="wood" data-page-node-id="GAzVdyk6LqxAZlHOcqbnmV">0</b>　🪨 石头 <b id="stone" data-page-node-id="wtohjxpgUTtwzd0wCCb4vf">0</b></div>
+    <div class="row" data-page-node-id="RDJYIzs3byvAFTcRBZe7AI">🎣 捕鱼效率：<b id="net" data-page-node-id="XzeNt9gC7QT3YzHlMtzF2A">徒手 ×1</b>　码头：<b id="dock" data-page-node-id="hWzOAmMVqg0MMs1TrJ7VZc">未建</b></div>
+    <div class="row" data-page-node-id="RPGo1LCAFM2m4crep3QC6H">👥 帮工：<b id="workers" data-page-node-id="pkGdfigk8OkbLRNRedBQCm">无</b></div>
+    <div class="row" data-page-node-id="p5WyQQECQ49vHu0eaOm5SC">🏦 鱼仓：<b id="savings" data-page-node-id="ToUfB5rCVjKeoFDqPPP3kg">0</b> 条(满仓不再生崽)</div>
+  </div>
+
+  <!-- 右上：日志 -->
+  <div id="logbox" data-page-node-id="L6f1YS3rswFbDHQNbbjzxQ"><div class="title" data-page-node-id="AIMREiqJSPdtjAwmLyfIat">岛上的日子</div><div id="log" data-page-node-id="8a3jNRyW8Q2epBcfuKsuZh"></div></div>
+
+  <!-- 岛民事务所(V) -->
+  <div id="workerPanel" class="hidden" data-page-node-id="mC3L4N9H68oxlTnRXvCdG6">
+    <div class="title" data-page-node-id="6Qy41OkA6AnIm2TEUugZGL">👥 岛民事务所</div>
+    <div class="row" data-page-node-id="NF7qNUVL9dc8VhGKwFUAFM">人口 <b id="wpPop" data-page-node-id="22zebF2ZJpCGMRZ3Ta6ksp">1</b>　闲散岛民 <b id="wpIdle" data-page-node-id="Q9qqWS3RR6ZHF4Ro0UxawN">0</b></div>
+    <div class="tip" data-page-node-id="Kb0FJRSN7D3TEFSUoQgq0r">安家费 5 份食物(鱼优先、谷穗可补)· 签约即上工<br data-page-node-id="StWh3AQEYuxhzvJy0asg0n">渔夫四六分成 / 农夫种收 4 田 / 樵夫矿工管饭换资源</div>
+    <div id="wpHire" data-page-node-id="zuXqs97d0n2NWswDrJCDX4"></div>
+    <div id="wpList" data-page-node-id="RuIwPK0qrmFDcHnP9zWiIC"></div>
+  </div>
+
+  <!-- 鱼仓面板(粮仓建成后可点开 / 空格对准粮仓也可) -->
+  <div id="granaryPanel" class="hidden" data-page-node-id="iAxxkn520cqTLaNaPHZiG1">
+    <div class="title" data-page-node-id="SgRCRgHTgrfRnVzE05BmbK">🏦 鱼仓</div>
+    <div class="tip" data-page-node-id="Hu6o23mcKD5nTU4HQCzYwS">把鱼存进来,鱼仓会用小鱼崽报答你。<br data-page-node-id="yiAQytGPBlqYsLiXvjTdfl">岛上鱼少时生崽快,鱼多时慢——这是鱼仓的脾气。</div>
+    <div class="gp-row" data-page-node-id="AjfAj6PQhdgsNYAbAOEfem"><span data-page-node-id="wpFGAANZDC74jYnrCdIhFA">📦 库存鱼</span><b id="gpFish" data-page-node-id="n78eqm3fmaIkCVykubZDKU">0</b></div>
+    <div class="gp-row" data-page-node-id="4AdSVvbb3uDYkpSTwcSGpc"><span data-page-node-id="9DI2hxdIHOKFax6r0onSEq">🐟 仓内鱼</span><b id="gpSavings" data-page-node-id="TBfBLDOovQE4HrHzsvbwmp">0</b></div>
+    <div class="gp-row" data-page-node-id="bIXuH4fAhdYAFJbcjNAuIx"><span data-page-node-id="HhJ5aKYxMLywR1kmkdUvUu">🌱 当前生崽速度</span><b id="gpRate" data-page-node-id="OI58InHByVGpG9qn45zkiY">20%</b>/天</div>
+    <div class="gp-hint" id="gpHint" data-page-node-id="BC774JEFySZurRxXVN1fFR">🐟 鱼仓生崽正常,长期来看存鱼比吃鱼攒多</div>
+    <input id="granaryInput" type="number" min="1" placeholder="数量" data-page-node-id="4D9Ya9zAsSzUHUvgh9GJIT" />
+    <div class="gp-btns" data-page-node-id="HGXUdrklBidu8JTlffE0Rv">
+      <button id="gpDeposit" class="gp-deposit" data-page-node-id="TIGdN4sVsYOq28DuYpLIkY">📥 存入</button>
+      <button id="gpWithdraw" class="gp-withdraw" data-page-node-id="5PbFkQDUNg59vF0R7mDHQL">📤 取出</button>
+      <button id="gpClose" data-page-node-id="O7UVvHngTWu3akkvj4dUo9">关闭 (Esc)</button>
+    </div>
+  </div>
+
+  <!-- 底部：建造与过天 -->
+  <div id="bar" data-page-node-id="pBx1eifuBDkijBw3rf419R">
+    <button id="bWork" data-page-node-id="O26VNgVGAIsvZu1Hb4Le09">👥 岛民事务所 (V)</button>
+    <button id="bNet" data-page-node-id="hbYbJzXrYWkndV5P1ckoxX">织渔网 (木2)</button>
+    <button id="bHut" data-page-node-id="dVeFMDE2KIJHtVILLTTUWQ">盖棚屋 (木4石2)</button>
+    <button id="bGranary" data-page-node-id="AkJppXOQfRAiOPqpKgBi6c">盖粮仓 (木6石4)</button>
+    <button id="bDock" data-page-node-id="dtXg4Xde2cwRULgWhu4LR4">建码头 (木8)</button>
+    <button id="bDay" data-page-node-id="qsFqEba2uCA8PSgqCViCNs">睡一觉·过一天 (T)</button>
+  </div>
+
+  <!-- 左下：视角灵敏度 -->
+  <div id="sensbox" data-page-node-id="91IdBfkhy2W5TFT7Doo9hN">
+    <div class="srow" data-page-node-id="vWhqCeHCoBY8ofFd3XF0Mr">🎯 视角灵敏度 <b id="sensVal" data-page-node-id="NlFM03n780EBKekP4dlQ4Y">0.0015</b></div>
+    <input id="sensSlider" type="range" min="3" max="30" step="1" value="15" data-page-node-id="nf0FWc1Y3XUhT4vWDFVOFJ" />
+    <div class="stip" data-page-node-id="fguGpI14XnS5XhjZPsOkfG">转一圈约 <b id="sensCm" data-page-node-id="s8Mh0ep6lQFOMJgp8guxby">6.6</b> cm　<button id="sensDpiBtn" data-page-node-id="AEr05mqyul3o1ux7ueHmKB">鼠标 <b id="sensDpi" data-page-node-id="DxgFwF8LmYa29QA118DfEe">1600</b> DPI</button></div>
+  </div>
+
+  <!-- 帮助 -->
+  <div id="help" data-page-node-id="FfPviSg8j8GJyqLiDE3vWF">
+    <b data-page-node-id="km8vcfrQtpebhUUPeKoWBh">玩法：</b> <b data-page-node-id="YLcnP6QdybyUWfNAwNvxqX">左键点资源</b>(树/石头/果丛/成熟农田/粮仓)小人自动走过去采完/打开 · <b data-page-node-id="DB6DELTki5mbiTQetq8g2J">左键点地面</b>单纯走过去(再点随时改目的地) ·
+    WASD手动移动(随时接管取消任务) · 空格=原地采集(不走动) ·
+    <b data-page-node-id="4xjgMtYAlQWtHP4mS6zLiZ">鱼会躲人</b>:下水游近抓,每失败一次下次成功率+20% · 游不出近海 ·
+    <b data-page-node-id="s8E15CdEMuM8kmM6pPsTuo">粮仓</b>=鱼仓:存鱼生崽(看不见百分比,只看小鱼苗数量) ·
+    <b data-page-node-id="bcPWBSfuj6qkmE2Q098xOq">V</b>岛民事务所:花5份食物雇佣帮工,帮工会走到工作点干活 · C第三人称 · T过一天
+  </div>
+
+  <!-- 开场遮罩 -->
+  <div id="overlay" data-page-node-id="350uAwC9JVygJ6x2CRJVIf">
+    <div class="card" data-page-node-id="fDqKqD2W2xTp5ZNUv0DAtg">
+      <h1 data-page-node-id="lOt3FJe2vEcRXloK7EdwiO">🏝️ 荒岛物语</h1>
+      <p data-page-node-id="wsZU4wCYXBMTGUqA2KT3Ah">你随海漂流到一座荒岛,开局一无所有。<b data-page-node-id="UYNClXHtMdNcmjfDD5FOZ3">摘野果、捕鱼、砍树、采石、种田、盖房</b>——让小岛一天天繁荣起来,吸引更多岛民上岛安家。</p>
+      <p class="small" data-page-node-id="JehhhPXPz4DbeOa551nIRw">提示:先用空格摘果丛凑谷穗,谷穗既是粮食也是种子;攒够木头先织渔网,再盖棚屋——<b data-page-node-id="mfhY6kAP7rQGKfiN5lVKxc">有余粮、有住处,新岛民才会来</b>。</p>
+      <button id="startBtn" data-page-node-id="RXfdYHyz8h56PVbsdw55Tf">开始荒岛生活</button>
+    </div>
+  </div>
+
+  <!-- 昼夜过渡动画 -->
+  <div id="dayNightOverlay">
+    <div id="dnMoon">🌙</div>
+    <div id="dnZzz">💤 Z Z Z</div>
+    <div id="dnSun">☀️</div>
+    <div id="dnDayNum">第 1 天</div>
+  </div>
+
+  <!-- 触控设备控制 -->
+  <div id="touchControls">
+    <div id="joystickArea"><div id="joystickKnob"></div></div>
+    <div id="touchBtns">
+      <button id="tbAction" title="互动">✋</button>
+      <button id="tbV" class="small" title="岛民事务所">👥</button>
+      <button id="tbC" class="small" title="切换视角">🎥</button>
+      <button id="tbT" class="small" title="过一天">💤</button>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js?v=25"></script>
+</body>
+</html>
