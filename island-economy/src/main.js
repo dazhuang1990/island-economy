@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, buildBasket, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO, addFood, foodFreshness } from './game.js';
+import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, buildBasket, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO, addFood, foodFreshness, workerHealthMul, useHerb } from './game.js';
 
 const g = newGame();
 
@@ -1567,7 +1567,10 @@ function renderWorkerPanel() {
   let list = '';
   for (const r of ['fisher', 'farmer', 'woodcutter', 'miner']) {
     if (!g.workers[r]) continue;
-    list += `<div class="wrow"><span>${ROLE_NAME[r]} × ${g.workers[r]}</span><button data-fire="${r}">解约</button></div>`;
+    const health = (g.workerHealth || {})[r] || 'ok';
+    const healthIcon = health === 'sick' ? ' 🤒生病' : health === 'weak' ? ' 😵虚弱' : '';
+    const healBtn = health === 'sick' && (g.herbs || 0) > 0 ? `<button data-heal="${r}">🌿治疗</button>` : '';
+    list += `<div class="wrow"><span>${ROLE_NAME[r]} × ${g.workers[r]}${healthIcon}</span>${healBtn}<button data-fire="${r}">解约</button></div>`;
   }
   $('wpList').innerHTML = list || '<div class="empty">还没有帮工。散工只自给自足,雇佣后才有产出。</div>';
 }
@@ -1598,10 +1601,20 @@ function updateHUD() {
   $('dock').textContent = g.dock ? '已建 ×3' : '未建';
   $('savings').textContent = g.granary ? g.savings : '—（先盖粮仓）';
   const w = g.workers;
+  const h = g.workerHealth || {};
+  function wStatus(role) {
+    if (!w[role]) return '';
+    const health = h[role] || 'ok';
+    const icon = health === 'sick' ? '🤒' : health === 'weak' ? '😵' : '';
+    return `${ROLE_NAME[role]}${w[role]}${icon}`;
+  }
   $('workers').textContent = w.fisher || w.farmer || w.woodcutter || w.miner
-    ? `渔夫${w.fisher} 农夫${w.farmer} 樵夫${w.woodcutter} 矿工${w.miner} · 散工${idleCount(g)}`
+    ? ['fisher','farmer','woodcutter','miner'].map(wStatus).filter(Boolean).join(' ') + ` · 散工${idleCount(g)}`
     : `无(散工${idleCount(g)} 人自给自足)`;
   $('eats').textContent = estEatNeed();
+  // 草药
+  const herbEl = $('herbs');
+  if (herbEl) herbEl.textContent = g.herbs || 0;
   renderWorkerPanel();
 }
 
@@ -2125,6 +2138,7 @@ $('workerPanel').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.hire) { const r = hireVillager(g, b.dataset.hire); flash(r.msg); }
   else if (b.dataset.fire) { const r = dismissVillager(g, b.dataset.fire); flash(r.msg); }
+  else if (b.dataset.heal) { const r = useHerb(g, b.dataset.heal); flash(r.msg); }
   else return;
   assignRoles();
   updateHUD();

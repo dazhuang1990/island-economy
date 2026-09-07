@@ -47,6 +47,15 @@ export const CFG = {
   FISH_SHELF_LIFE: 3,
   GRAIN_SHELF_LIFE: 7,
   ROOT_SHELF_LIFE: 10,
+  // 生病机制
+  SICK_EAT_EXPIRED_CHANCE: 0.30,    // 吃过期食物生病概率
+  SICK_STORM_WORK_CHANCE: 0.20,     // 暴风雨天工作生病概率
+  SICK_STARVE_DAYS: 2,              // 饥饿持续天数必定生病
+  HERB_HEAL_CHANCE: 0.60,           // 草药治愈概率
+  SELF_HEAL_DAYS: 3,                // 自愈天数
+  SELF_HEAL_CHANCE: 0.50,           // 自愈概率
+  HERB_SPAWN_MIN: 1,                // 每天最少刷新草药
+  HERB_SPAWN_MAX: 2,                // 每天最多刷新草药
   // 天气系统
   WEATHER_MIN_DAYS: 2,              // 每种天气最少持续天数
   WEATHER_MAX_DAYS: 3,              // 每种天气最多持续天数
@@ -139,6 +148,62 @@ export function advanceWeather(g) {
   return null; // 天气未变化
 }
 
+// ---------- 生病机制 ----------
+export function workerHealthMul(g, role) {
+  const h = g.workerHealth[role] || 'ok';
+  if (h === 'sick') return 0;
+  if (h === 'weak') return 0.25;
+  return 1.0;
+}
+export function checkSickness(g) {
+  const ev = [];
+  for (const role of ROLES) {
+    if (g.workers[role] <= 0) continue;
+    const h = g.workerHealth[role];
+    if (h === 'sick') {
+      g.sickDays[role] = (g.sickDays[role] || 0) + 1;
+      if (g.sickDays[role] >= CFG.SELF_HEAL_DAYS) {
+        if (Math.random() < CFG.SELF_HEAL_CHANCE) {
+          g.workerHealth[role] = 'ok'; g.sickDays[role] = 0;
+          ev.push(`💊 ${ROLE_NAME[role]}自愈了!`);
+        } else { g.sickDays[role] = 0; }
+      }
+      continue;
+    }
+    if (h === 'weak') {
+      if (foodTotal(g) > 0) { g.workerHealth[role] = 'ok'; ev.push(`💪 ${ROLE_NAME[role]}吃饱了,恢复正常!`); }
+      continue;
+    }
+    if (g.weather === 'stormy' && Math.random() < CFG.SICK_STORM_WORK_CHANCE) {
+      g.workerHealth[role] = 'sick'; g.sickDays[role] = 0;
+      ev.push(`🤒 ${ROLE_NAME[role]}暴风雨天工作,生病了!`);
+    }
+  }
+  // 饥饿触发虚弱
+  if (foodTotal(g) <= 0) {
+    g.starveDays = (g.starveDays || 0) + 1;
+    if (g.starveDays >= CFG.SICK_STARVE_DAYS) {
+      for (const role of ROLES) {
+        if (g.workers[role] > 0 && g.workerHealth[role] === 'ok') {
+          g.workerHealth[role] = 'weak';
+          ev.push(`😵 ${ROLE_NAME[role]}持续饥饿,进入虚弱状态(效率25%)!`);
+        }
+      }
+    }
+  } else { g.starveDays = 0; }
+  return ev;
+}
+export function useHerb(g, role) {
+  if (g.herbs <= 0) return { ok: false, msg: '❌ 没有草药了。' };
+  if ((g.workerHealth[role] || 'ok') !== 'sick') return { ok: false, msg: `${ROLE_NAME[role]}没有生病。` };
+  g.herbs--;
+  if (Math.random() < CFG.HERB_HEAL_CHANCE) {
+    g.workerHealth[role] = 'ok'; g.sickDays[role] = 0;
+    return { ok: true, msg: `🌿 草药生效!${ROLE_NAME[role]}痊愈了!` };
+  }
+  return { ok: true, msg: `🌿 草药没起效……${ROLE_NAME[role]}还是病着。` };
+}
+
 // ---------- 雇佣职业 ----------
 export const ROLES = ['fisher', 'farmer', 'woodcutter', 'miner'];
 export const ROLE_NAME = { fisher: '渔夫', farmer: '农夫', woodcutter: '樵夫', miner: '采石工' };
@@ -170,6 +235,11 @@ export function newGame() {
     granaryHintShown: false,// 是否已提示过"老岛民建议存鱼"
     workers: { fisher: 0, farmer: 0, woodcutter: 0, miner: 0 },  // 在职帮工
     workerReport: null,     // 昨天帮工给玩家的产出(供3D飘字)
+    // 帮工健康: {fisher:'ok'|'sick'|'weak', ...} ok=正常 sick=生病 weak=虚弱
+    workerHealth: { fisher: 'ok', farmer: 'ok', woodcutter: 'ok', miner: 'ok' },
+    sickDays: { fisher: 0, farmer: 0, woodcutter: 0, miner: 0 },  // 生病天数(自愈计数)
+    starveDays: 0,          // 连续饥饿天数(生病触发)
+    herbs: 0,               // 草药库存
     crops: [],              // {x,z,age,ready} 由 main 层维护 3D
     prosperity: 0,
     starveStreak: 0,
@@ -351,7 +421,8 @@ export function advanceDay(g) {
   // 这里只算渔夫(鱼AI 复杂,保留批量)+ 帮工每天的吃饭负担(extraEat)
   if (g.workers.fisher) {
     for (let i = 1; i <= g.workers.fisher; i++) {
-      const P = Math.max(1, Math.round(2 * fisherCapital(g) * marginal(i) * wInfo.fishMul)); // 产量=2×资本×效率×天气
+      const healthMul = workerHealthMul(g, 'fisher');
+      const P = Math.max(1, Math.round(2 * fisherCapital(g) * marginal(i) * wInfo.fishMul * healthMul)); // 产量=2×资本×效率×天气×健康
       const mine = Math.round(P * 0.6);   // 玩家拿六成
       addFood(g, 'fish', mine); rep.fisher += mine;
       if (P < 2) extraEat++;              // 徒手+效率衰减时收成差,渔夫还得吃库存
@@ -389,6 +460,14 @@ export function advanceDay(g) {
   } else {
     g.starveStreak = 0;
   }
+
+  // 3.5 生病检查+草药刷新
+  const sickEv = checkSickness(g);
+  ev.push(...sickEv);
+  // 主岛每天刷新草药
+  const herbDrop = CFG.HERB_SPAWN_MIN + Math.floor(Math.random() * (CFG.HERB_SPAWN_MAX - CFG.HERB_SPAWN_MIN + 1));
+  g.herbs = (g.herbs || 0) + herbDrop;
+  if (herbDrop > 0) ev.push(`🌿 发现了 ${herbDrop} 株草药(可用于治疗生病的帮工)`);
 
   // 4. 鱼仓计息(Phase 2.1)—— 整日结算前最后改 savings,避免吃饭/新岛民逻辑读到旧值
   if (g.savings > 0) {
@@ -439,6 +518,10 @@ export function serializeGame(g) {
     workers: { ...g.workers }, prosperity: g.prosperity, starveStreak: g.starveStreak,
     weather: g.weather || 'sunny', weatherTimer: g.weatherTimer || 3,
     foodStock: g.foodStock || [],
+    workerHealth: g.workerHealth || { fisher: 'ok', farmer: 'ok', woodcutter: 'ok', miner: 'ok' },
+    sickDays: g.sickDays || { fisher: 0, farmer: 0, woodcutter: 0, miner: 0 },
+    starveDays: g.starveDays || 0,
+    herbs: g.herbs || 0,
   });
 }
 export function deserializeGame(json) {
