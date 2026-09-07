@@ -68,6 +68,16 @@ export const CFG = {
   HUT_COST: { wood: 4, stone: 2 },
   GRANARY_COST: { wood: 6, stone: 4 },
   DOCK_COST: { wood: 8, stone: 0 },
+  BOAT_COST: { wood: 30, stone: 10 },           // 造船
+  WORKBENCH_COST: { wood: 10, stone: 6, iron: 3 }, // 工具台
+  WELL_COST: { wood: 0, stone: 8, iron: 2 },       // 水井
+  FURNACE_COST: { wood: 0, stone: 10, iron: 5 },    // 冶炼炉
+  // 铁矿石保底
+  IRON_PER_ORE: 3,       // 3碎片=1铁矿石
+  IRON_PRD_BASE: 0.05,   // PRD基础概率
+  IRON_PRD_STEP: 0.08,   // PRD每次递增
+  IRON_PRD_CAP: 0.50,    // PRD概率上限
+  DEEP_FISH_COOLDOWN: 0, // 深海钓鱼无冷却(同一天可多次)
   NET_COST: { wood: 2, fiber: 0 },  // 渔网用木头编(也可以改吃鱼成本)
   BASKET_COST: { wood: 4 },         // 采集篓
   BASKET_MAX: 2,                    // 每人岛最多2个采集篓
@@ -275,6 +285,16 @@ export function newGame() {
     fish: 0, grain: 0, wood: 0, stone: 0, root: 0,
     hasNet: false,
     baskets: 0,              // 采集篓数量
+    // 科技树进度
+    hasBoat: false,          // 造船完成
+    hasWorkbench: false,     // 工具台完成
+    hasWell: false,          // 水井完成
+    hasFurnace: false,       // 冶炼炉完成
+    hasTrader: false,        // 商船完成
+    ironFragments: 0,        // 铁矿石碎片数量
+    iron: 0,                 // 铁矿石数量(3碎片合成)
+    refinedIron: 0,          // 精炼铁数量
+    deepFishCount: 0,        // 深海钓鱼次数(PRD计数器)
     pop: 1,                 // 1 = 只有你自己
     huts: 0, granary: 0, dock: 0,
     craftingDay: false,     // R2 延迟消费:织网当天分心,捕鱼成功率减半(过一天恢复)
@@ -387,6 +407,85 @@ export function buildBasket(g) {
   pay(g, c.cost);
   g.baskets++;
   return { ok: true, msg: `采集篓建好了!(第 ${g.baskets}/${CFG.BASKET_MAX} 个,每天自动采集1~2份野生根茎)` };
+}
+
+// ---------- 造船/铁器 ----------
+// canBuild 支持带 iron 的造价
+function canBuildAdv(g, costKey) {
+  const cost = CFG[costKey];
+  if (!cost) return { ok: false, msg: '未知建筑' };
+  if (g.wood < (cost.wood || 0)) return { ok: false, msg: `❌ 木头不够:需要 ${cost.wood},现有 ${g.wood}。` };
+  if ((cost.stone || 0) > g.stone) return { ok: false, msg: `❌ 石头不够:需要 ${cost.stone},现有 ${g.stone}。` };
+  if ((cost.iron || 0) > (g.iron || 0)) return { ok: false, msg: `❌ 铁矿石不够:需要 ${cost.iron},现有 ${g.iron || 0}。` };
+  return { ok: true, cost };
+}
+function payAdv(g, cost) { g.wood -= (cost.wood || 0); g.stone -= (cost.stone || 0); g.iron = (g.iron || 0) - (cost.iron || 0); }
+
+export function buildBoat(g) {
+  if (g.hasBoat) return { ok: false, msg: '已经有船了。' };
+  if (!g.dock) return { ok: false, msg: '❌ 需要先建码头。' };
+  const c = canBuildAdv(g, 'BOAT_COST'); if (!c.ok) return c;
+  payAdv(g, c.cost);
+  g.hasBoat = true;
+  return { ok: true, msg: '⛵ 船造好了!码头菜单解锁"深海钓鱼"和"出海探索"。' };
+}
+export function buildWorkbench(g) {
+  if (g.hasWorkbench) return { ok: false, msg: '已经有工具台了。' };
+  if ((g.iron || 0) < 3) return { ok: false, msg: '❌ 需要 3 个铁矿石(深海钓鱼获得碎片,3个合成1个铁矿石)。' };
+  const c = canBuildAdv(g, 'WORKBENCH_COST'); if (!c.ok) return c;
+  payAdv(g, c.cost);
+  g.hasWorkbench = true;
+  return { ok: true, msg: '🔨 工具台建好了!解锁铁器工具。' };
+}
+export function buildWell(g) {
+  if (g.hasWell) return { ok: false, msg: '已经有水井了。' };
+  if (!g.hasWorkbench) return { ok: false, msg: '❌ 需要先建工具台。' };
+  const c = canBuildAdv(g, 'WELL_COST'); if (!c.ok) return c;
+  payAdv(g, c.cost);
+  g.hasWell = true;
+  return { ok: true, msg: '💧 水井建好了!作物不再受暴风雨影响。' };
+}
+export function buildFurnace(g) {
+  if (g.hasFurnace) return { ok: false, msg: '已经有冶炼炉了。' };
+  if (!g.hasWorkbench) return { ok: false, msg: '❌ 需要先建工具台。' };
+  const c = canBuildAdv(g, 'FURNACE_COST'); if (!c.ok) return c;
+  payAdv(g, c.cost);
+  g.hasFurnace = true;
+  return { ok: true, msg: '🔥 冶炼炉建好了!可以生产精炼铁。' };
+}
+
+// ---------- 铁矿石系统 ----------
+// PRD 伪随机:每次未获得铁矿石碎片,下次概率递增
+export function ironDropChance(count) {
+  return Math.min(CFG.IRON_PRD_CAP, CFG.IRON_PRD_BASE + count * CFG.IRON_PRD_STEP);
+}
+// 深海钓鱼(返回收获信息)
+export function deepFish(g) {
+  if (!g.hasBoat) return { ok: false, msg: '❌ 需要先造船。' };
+  g.deepFishCount = (g.deepFishCount || 0) + 1;
+  const chance = ironDropChance(g.deepFishCount);
+  const roll = Math.random();
+  let result = { ironFragment: 0, fish: 0, msg: '' };
+  // 保底:第10次必出
+  const guaranteed = g.deepFishCount >= 10;
+  if (roll < chance || guaranteed) {
+    result.ironFragment = 1;
+    g.ironFragments = (g.ironFragments || 0) + 1;
+    g.deepFishCount = 0; // 重置PRD计数
+  }
+  // 额外捕鱼
+  const fishAmt = 1 + Math.floor(Math.random() * 2);
+  addFood(g, 'fish', fishAmt);
+  result.fish = fishAmt;
+  // 检查是否够合成铁矿石
+  if (g.ironFragments >= CFG.IRON_PER_ORE) {
+    g.ironFragments -= CFG.IRON_PER_ORE;
+    g.iron = (g.iron || 0) + 1;
+    result.msg = `🎣 深海钓鱼:获得 ${fishAmt} 条鱼` + (result.ironFragment ? ' + 1 铁矿石碎片!' : '') + ` (碎片 ${g.ironFragments}/${CFG.IRON_PER_ORE})。碎片足够,自动合成了 1 个铁矿石!(铁矿石:${g.iron})`;
+  } else {
+    result.msg = `🎣 深海钓鱼:获得 ${fishAmt} 条鱼` + (result.ironFragment ? ' + 1 铁矿石碎片!' : ' (没钓到碎片)') + ` (碎片 ${g.ironFragments}/${CFG.IRON_PER_ORE})`;
+  }
+  return { ok: true, ...result };
 }
 
 // ---------- 鱼仓(Phase 2.1) ----------
@@ -570,6 +669,10 @@ export function serializeGame(g) {
     sickDays: g.sickDays || { fisher: 0, farmer: 0, woodcutter: 0, miner: 0 },
     starveDays: g.starveDays || 0,
     herbs: g.herbs || 0,
+    hasBoat: g.hasBoat || false, hasWorkbench: g.hasWorkbench || false, hasWell: g.hasWell || false,
+    hasFurnace: g.hasFurnace || false, hasTrader: g.hasTrader || false,
+    ironFragments: g.ironFragments || 0, iron: g.iron || 0, refinedIron: g.refinedIron || 0,
+    deepFishCount: g.deepFishCount || 0,
   });
 }
 export function deserializeGame(json) {

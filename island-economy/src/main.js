@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, buildBasket, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO, addFood, foodFreshness, workerHealthMul, useHerb, TECH_TREE, getCurrentGoal } from './game.js';
+import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, buildBasket, buildBoat, buildWorkbench, buildWell, buildFurnace, deepFish, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO, addFood, foodFreshness, workerHealthMul, useHerb, TECH_TREE, getCurrentGoal } from './game.js';
 
 const g = newGame();
 
@@ -1619,6 +1619,21 @@ function updateHUD() {
   const goal = getCurrentGoal(g);
   const goalTextEl = $('goalText');
   if (goalTextEl) goalTextEl.textContent = goal.text;
+  // 按钮显隐(根据科技树进度)
+  const show = (id, cond) => { const el = $(id); if (el) el.style.display = cond ? '' : 'none'; };
+  show('bBoat', g.dock && !g.hasBoat);
+  show('bDeepFish', g.hasBoat);
+  show('bWorkbench', (g.iron || 0) >= 3 && !g.hasWorkbench);
+  show('bWell', g.hasWorkbench && !g.hasWell);
+  show('bFurnace', g.hasWorkbench && !g.hasFurnace);
+  // 铁矿石 HUD
+  const ironEl = $('ironInfo');
+  if (ironEl) {
+    if (g.hasBoat || (g.ironFragments || 0) > 0 || (g.iron || 0) > 0) {
+      ironEl.textContent = `⛏️ 碎片${g.ironFragments || 0}/${CFG.IRON_PER_ORE} 铁矿${g.iron || 0}` + ((g.refinedIron || 0) > 0 ? ` 精炼铁${g.refinedIron}` : '');
+      ironEl.style.display = '';
+    } else { ironEl.style.display = 'none'; }
+  }
   renderWorkerPanel();
 }
 
@@ -2100,7 +2115,12 @@ $('bGranary').onclick = () => {
   }
   flash(r.msg);
 };
-$('bDock').onclick = () => { const r = buildDock(g); if (r.ok) buildDockMesh(); flash(r.msg); };
+$('bDock').onclick = () => { const r = buildDock(g); if (r.ok) buildDockMesh(); flash(r.msg); updateHUD(); };
+$('bBoat').onclick = () => { const r = buildBoat(g); flash(r.msg); updateHUD(); };
+$('bDeepFish').onclick = () => { const r = deepFish(g); flash(r.msg); updateHUD(); };
+$('bWorkbench').onclick = () => { const r = buildWorkbench(g); flash(r.msg); updateHUD(); };
+$('bWell').onclick = () => { const r = buildWell(g); flash(r.msg); updateHUD(); };
+$('bFurnace').onclick = () => { const r = buildFurnace(g); flash(r.msg); updateHUD(); };
 $('bDay').onclick = () => sleep();
 $('bWork').onclick = () => toggleWorkerPanel();
 // 鱼仓面板按钮
