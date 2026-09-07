@@ -2135,6 +2135,8 @@ if (loaded) {
   flash('开局一无所有。先摘果丛凑谷穗(空格),播种、砍树、盖棚屋,吸引岛民上岛!');
 }
 // 只读调试句柄(自动化测试用,不暴露写接口)
+// 暴露游戏状态到全局(方便控制台调试)
+window.g = g;
 window.__dbg = () => ({
   player: { x: +player.pos.x.toFixed(2), z: +player.pos.z.toFixed(2) },
   trees: trees.length, rocks: rocks.length, bushes: bushes.length,
