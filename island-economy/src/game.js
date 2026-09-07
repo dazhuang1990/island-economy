@@ -21,6 +21,10 @@ export const CFG = {
   GRANARY_COST: { wood: 6, stone: 4 },
   DOCK_COST: { wood: 8, stone: 0 },
   NET_COST: { wood: 2, fiber: 0 },  // 渔网用木头编(也可以改吃鱼成本)
+  BASKET_COST: { wood: 4 },         // 采集篓
+  BASKET_MAX: 2,                    // 每人岛最多2个采集篓
+  BASKET_MIN_YIELD: 1,              // 每天最少产出
+  BASKET_MAX_YIELD: 2,              // 每天最多产出
   // 人口与生存
   EAT_PER_PERSON: 1,                // 每人每天吃1份食物(鱼或谷穗)
   ISLANDER_WORK: 1,                 // 散工每天自动产出1份食物(自给自足)
@@ -70,6 +74,7 @@ export function addFood(g, type, qty) {
   // 同步到旧字段(兼容)
   if (type === 'fish') g.fish += qty;
   else if (type === 'grain') g.grain += qty;
+  else if (type === 'root') g.root = (g.root || 0) + qty;
 }
 // 每天结算:过期食物扣除
 export function expireFood(g) {
@@ -80,6 +85,7 @@ export function expireFood(g) {
     if (g.day >= batch.expiresAt) {
       if (batch.type === 'fish') { g.fish -= batch.qty; expiredFish += batch.qty; }
       else if (batch.type === 'grain') { g.grain -= batch.qty; expiredGrain += batch.qty; }
+      else if (batch.type === 'root') { g.root = Math.max(0, (g.root || 0) - batch.qty); expiredRoot += batch.qty; }
       g.foodStock.splice(i, 1);
     }
   }
@@ -153,8 +159,9 @@ export const TIERS = [
 export function newGame() {
   return {
     day: 1,
-    fish: 0, grain: 0, wood: 0, stone: 0,
+    fish: 0, grain: 0, wood: 0, stone: 0, root: 0,
     hasNet: false,
+    baskets: 0,              // 采集篓数量
     pop: 1,                 // 1 = 只有你自己
     huts: 0, granary: 0, dock: 0,
     craftingDay: false,     // R2 延迟消费:织网当天分心,捕鱼成功率减半(过一天恢复)
@@ -193,7 +200,10 @@ export function tierOf(p) {
   return name;
 }
 
-export function foodTotal(g) { return g.fish + g.grain; }
+export function foodTotal(g) {
+  // 计算 foodStock 中所有食物的总量(包含根茎)
+  return g.foodStock.reduce((sum, b) => sum + b.qty, 0);
+}
 export function hutCapacity(g) { return g.huts * CFG.HUT_CAPACITY; }
 export function canHouse(g) { return g.pop < hutCapacity(g) || g.pop === 1; } // 你自己可以睡沙滩
 
@@ -252,6 +262,13 @@ export function craftNet(g) {
   // R2 延迟消费 = 双成本:既耗木头,当天还要分心编网(捕鱼成功率减半,睡一觉恢复)
   g.craftingDay = true;
   return { ok: true, msg: '渔网编好了!代价是双份:耗了木头,今天还得边编网边分心——捕鱼成功率减半。睡一觉就好,明天起捕鱼 ×2。' };
+}
+export function buildBasket(g) {
+  if (g.baskets >= CFG.BASKET_MAX) return { ok: false, msg: `❌ 采集篓已达上限(${CFG.BASKET_MAX}个)。` };
+  const c = canBuild(g, 'BASKET'); if (!c.ok) return c;
+  pay(g, c.cost);
+  g.baskets++;
+  return { ok: true, msg: `采集篓建好了!(第 ${g.baskets}/${CFG.BASKET_MAX} 个,每天自动采集1~2份野生根茎)` };
 }
 
 // ---------- 鱼仓(Phase 2.1) ----------
@@ -318,6 +335,17 @@ export function advanceDay(g) {
     if (Math.random() < 0.55) addFood(g, 'fish', 1); else addFood(g, 'grain', 1);
   }
   if (idle > 0) ev.push(`散工们觅食自给(${idle} 人,产多少吃多少)`);
+
+  // 1.5 采集篓产出(不受天气影响)
+  if (g.baskets > 0) {
+    let basketTotal = 0;
+    for (let i = 0; i < g.baskets; i++) {
+      const amt = CFG.BASKET_MIN_YIELD + Math.floor(Math.random() * (CFG.BASKET_MAX_YIELD - CFG.BASKET_MIN_YIELD + 1));
+      addFood(g, 'root', amt);
+      basketTotal += amt;
+    }
+    ev.push(`🧺 采集篓产出 ${basketTotal} 份野生根茎(不受天气影响)`);
+  }
 
   // 2. 帮工产出:樵夫/矿工/农夫 已改为实时结算(Phase 2.1.2,帮工砍树敲石收割时立即入账),
   // 这里只算渔夫(鱼AI 复杂,保留批量)+ 帮工每天的吃饭负担(extraEat)
@@ -405,7 +433,7 @@ export function serializeGame(g) {
   return JSON.stringify({
     v: 4,
     day: g.day, fish: g.fish, grain: g.grain, wood: g.wood, stone: g.stone,
-    hasNet: g.hasNet, pop: g.pop, huts: g.huts, granary: g.granary, dock: g.dock,
+    hasNet: g.hasNet, baskets: g.baskets || 0, root: g.root || 0, pop: g.pop, huts: g.huts, granary: g.granary, dock: g.dock,
     craftingDay: g.craftingDay,
     savings: g.savings, interestLast: g.interestLast, granaryHintShown: g.granaryHintShown,
     workers: { ...g.workers }, prosperity: g.prosperity, starveStreak: g.starveStreak,

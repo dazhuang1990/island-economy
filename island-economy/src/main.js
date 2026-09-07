@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO, addFood, foodFreshness } from './game.js';
+import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, buildBasket, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO, addFood, foodFreshness } from './game.js';
 
 const g = newGame();
 
@@ -1591,6 +1591,9 @@ function updateHUD() {
   $('grain').style.color = g.grain > 0 ? (grainFresh > 0.6 ? '#8fe3a0' : grainFresh > 0.3 ? '#ffd766' : '#ff6b6b') : '';
   $('wood').textContent = g.wood;
   $('stone').textContent = g.stone;
+  // 采集篓状态
+  const basketEl = $('baskets');
+  if (basketEl) basketEl.textContent = g.baskets > 0 ? `🧺 ${g.baskets}/${CFG.BASKET_MAX} (🥔${g.root || 0})` : '未建';
   $('net').textContent = (g.hasNet ? '渔网 ×2' : '徒手 ×1') + (g.craftingDay ? '　🧵 手在编网(成功率减半,睡一觉恢复)' : '');
   $('dock').textContent = g.dock ? '已建 ×3' : '未建';
   $('savings').textContent = g.granary ? g.savings : '—（先盖粮仓）';
@@ -2068,6 +2071,7 @@ addEventListener('resize', () => {
 });
 
 // ---------- 按钮 ----------
+$('bBasket').onclick = () => { const r = buildBasket(g); flash(r.msg); updateHUD(); };
 $('bNet').onclick = () => { const r = craftNet(g); flash(r.msg); };
 $('bHut').onclick = () => { const r = buildHut(g); if (r.ok) { spawnHut(); syncIslanders(); assignRoles(); } flash(r.msg); };
 $('bGranary').onclick = () => {
