@@ -39,8 +39,41 @@ export const CFG = {
   PROSPER_PER_HUT: 15,
   PROSPER_GRANARY: 30,
   PROSPER_DOCK: 30,
+  // 天气系统
+  WEATHER_MIN_DAYS: 2,              // 每种天气最少持续天数
+  WEATHER_MAX_DAYS: 3,              // 每种天气最多持续天数
+  STORM_TREE_FALL_CHANCE: 0.20,     // 暴风雨吹倒树木概率
+  TREE_STUMP_REGROW: 10,            // 树桩重生天数
 };
 CFG.FISH_RESPAWN = 3; // 每天自然回游
+
+// ---------- 天气系统 ----------
+export const WEATHER_TYPES = ['sunny', 'cloudy', 'rainy', 'stormy'];
+export const WEATHER_INFO = {
+  sunny:   { name: '晴天', icon: '☀️', fishMul: 1.0, cropBonus: 0,   workerMul: 1.0 },
+  cloudy:  { name: '阴天', icon: '☁️', fishMul: 1.0, cropBonus: 0,   workerMul: 1.0 },
+  rainy:   { name: '雨天', icon: '🌧️', fishMul: 1.0, cropBonus: 1,   workerMul: 0.8 },
+  stormy:  { name: '暴风雨', icon: '⛈️', fishMul: 0.5, cropBonus: -1, workerMul: 0.5 },
+};
+// 天气转换规则:stormy 之后强制 sunny,其余按顺序或随机
+const WEATHER_NEXT = {
+  sunny:  () => Math.random() < 0.5 ? 'cloudy' : 'rainy',
+  cloudy: () => Math.random() < 0.6 ? 'rainy' : 'stormy',
+  rainy:  () => Math.random() < 0.5 ? 'stormy' : 'cloudy',
+  stormy: () => 'sunny', // 保底:暴风雨后必定晴天
+};
+
+export function advanceWeather(g) {
+  if (!g.weather) { g.weather = 'sunny'; g.weatherTimer = CFG.WEATHER_MIN_DAYS + Math.floor(Math.random() * (CFG.WEATHER_MAX_DAYS - CFG.WEATHER_MIN_DAYS + 1)); }
+  g.weatherTimer--;
+  if (g.weatherTimer <= 0) {
+    const next = WEATHER_NEXT[g.weather]();
+    g.weather = next;
+    g.weatherTimer = CFG.WEATHER_MIN_DAYS + Math.floor(Math.random() * (CFG.WEATHER_MAX_DAYS - CFG.WEATHER_MIN_DAYS + 1));
+    return WEATHER_INFO[next];
+  }
+  return null; // 天气未变化
+}
 
 // ---------- 雇佣职业 ----------
 export const ROLES = ['fisher', 'farmer', 'woodcutter', 'miner'];
@@ -76,6 +109,9 @@ export function newGame() {
     prosperity: 0,
     starveStreak: 0,
     events: [],
+    // 天气系统
+    weather: 'sunny',
+    weatherTimer: 3,        // 距下次天气变化的天数
   };
 }
 
@@ -204,6 +240,15 @@ export function advanceDay(g) {
   const rep = { fisher: 0, farmer: 0, woodcutter: 0, miner: 0 };
   let extraEat = 0; // 需要库存供养的帮工数(收成差的渔夫/农夫/樵夫/采石工)
 
+  // 0. 天气变化
+  const weatherChanged = advanceWeather(g);
+  if (weatherChanged) {
+    ev.push(`${weatherChanged.icon} 天气变为${weatherChanged.name}!`);
+  } else {
+    ev.push(`${WEATHER_INFO[g.weather].icon} ${WEATHER_INFO[g.weather].name}(还有 ${g.weatherTimer} 天)`);
+  }
+  const wInfo = WEATHER_INFO[g.weather];
+
   // 1. 散工觅食(自给自足:每天产1份、吃1份)
   for (let i = 0; i < idle; i++) {
     if (Math.random() < 0.55) g.fish++; else g.grain++;
@@ -214,12 +259,13 @@ export function advanceDay(g) {
   // 这里只算渔夫(鱼AI 复杂,保留批量)+ 帮工每天的吃饭负担(extraEat)
   if (g.workers.fisher) {
     for (let i = 1; i <= g.workers.fisher; i++) {
-      const P = Math.max(1, Math.round(2 * fisherCapital(g) * marginal(i))); // 产量=2×资本×效率
+      const P = Math.max(1, Math.round(2 * fisherCapital(g) * marginal(i) * wInfo.fishMul)); // 产量=2×资本×效率×天气
       const mine = Math.round(P * 0.6);   // 玩家拿六成
       g.fish += mine; rep.fisher += mine;
       if (P < 2) extraEat++;              // 徒手+效率衰减时收成差,渔夫还得吃库存
     }
-    ev.push(`🎣 渔夫捕鱼:你分得 ${rep.fisher} 条(四六分成,他自留四成当饭)`);
+    const weatherNote = wInfo.fishMul < 1 ? '(暴风雨减产)' : '';
+    ev.push(`🎣 渔夫捕鱼:你分得 ${rep.fisher} 条${weatherNote}(四六分成,他自留四成当饭)`);
   }
   if (g.workers.farmer) {
     // 农夫吃饭负担(实时收割时已扣过谷穗,这里只统计吃饭 1 份/天)
@@ -269,10 +315,17 @@ export function advanceDay(g) {
     ev.push('💭 有余粮了,但没棚屋……盖间棚屋才会有人愿意上岛。');
   }
 
-  // 6. 作物生长(age=-1 表示荒田,不生长)
+  // 6. 作物生长(age=-1 表示荒田,不生长);雨天加速(+1天),暴风雨暂停(不+)
   let ripened = 0;
-  for (const c of g.crops) { if (!c.ready && c.age >= 0) { c.age++; if (c.age >= CFG.CROP_DAYS) { c.ready = true; ripened++; } } }
+  for (const c of g.crops) {
+    if (!c.ready && c.age >= 0) {
+      const grow = 1 + wInfo.cropBonus; // 晴天/阴天=1,雨天=2,暴风雨=0
+      if (grow > 0) { c.age += grow; if (c.age >= CFG.CROP_DAYS) { c.ready = true; ripened++; } }
+    }
+  }
   if (ripened) ev.push(`🌾 ${ripened} 块田的谷子熟了,快去收(空格)!`);
+  if (wInfo.cropBonus > 0) ev.push('🌧️ 雨水滋润,作物长得更快了!');
+  if (wInfo.cropBonus < 0) ev.push('⛈️ 暴风雨肆虐,作物暂停生长。');
 
   // 7. 新的一天:织网的分心结束,捕鱼手感恢复
   g.craftingDay = false;
@@ -286,12 +339,13 @@ export function advanceDay(g) {
 // ---------- 存档 / 读档(Phase 2.1.1) ----------
 export function serializeGame(g) {
   return JSON.stringify({
-    v: 2,
+    v: 3,
     day: g.day, fish: g.fish, grain: g.grain, wood: g.wood, stone: g.stone,
     hasNet: g.hasNet, pop: g.pop, huts: g.huts, granary: g.granary, dock: g.dock,
     craftingDay: g.craftingDay,
     savings: g.savings, interestLast: g.interestLast, granaryHintShown: g.granaryHintShown,
     workers: { ...g.workers }, prosperity: g.prosperity, starveStreak: g.starveStreak,
+    weather: g.weather || 'sunny', weatherTimer: g.weatherTimer || 3,
   });
 }
 export function deserializeGame(json) {

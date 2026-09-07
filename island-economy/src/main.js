@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame } from './game.js';
+import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO } from './game.js';
 
 const g = newGame();
 
@@ -1509,6 +1509,10 @@ function updateHUD() {
   $('day').textContent = g.day;
   $('tier').textContent = tierOf(g.prosperity);
   $('prosperity').textContent = g.prosperity;
+  // 天气显示
+  const wi = WEATHER_INFO[g.weather] || WEATHER_INFO.sunny;
+  const weatherEl = $('weather');
+  if (weatherEl) weatherEl.textContent = `${wi.icon} ${wi.name} (${g.weatherTimer}天)`;
   $('pop').textContent = g.pop;
   $('house').textContent = `${g.pop} / ${hutCapacity(g)}`;
   $('fish').textContent = g.fish;
@@ -1670,6 +1674,18 @@ function sleep() {
       }
     });
     while (fishes.length < Math.min(CFG.FISH_MAX, fishes.length + CFG.FISH_RESPAWN)) spawnFish();
+    // 暴风雨吹倒树木(20%概率,留树桩10天后重生)
+    if (g.weather === 'stormy' && trees.length > 0 && Math.random() < CFG.STORM_TREE_FALL_CHANCE) {
+      const victim = trees[Math.floor(Math.random() * trees.length)];
+      queueRegrow('tree', victim);
+      // 改为树桩(缩短重生期)
+      regrowPending[regrowPending.length - 1].day = g.day + CFG.TREE_STUMP_REGROW;
+      fallingTrees.push({ tree: victim, t: 0 });
+      removeAt(trees, victim);
+      removeAt(interactives, victim);
+      releaseSlot(victim);
+      ev.push('🌬️ 暴风雨吹倒了一棵树!留下树桩,10天后重新长出。');
+    }
     for (let i = regrowPending.length - 1; i >= 0; i--) {
       const r = regrowPending[i];
       if (g.day >= r.day) {
