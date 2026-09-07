@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO } from './game.js';
+import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO, addFood, foodFreshness } from './game.js';
 
 const g = newGame();
 
@@ -907,7 +907,7 @@ function updateVillagers(dt, now) {
             const st = p.userData.state;
             if (st === 'ready') { // 熟了:收割+4谷,有种子就补种
               const yieldN = 4;
-              g.grain += yieldN;
+              addFood(g, 'grain', yieldN);
               // 补种
               if (g.grain >= 1) {
                 g.grain -= 1;
@@ -933,7 +933,7 @@ function updateVillagers(dt, now) {
           if (u.role === 'fisher') {
             const P2 = Math.max(1, Math.round(2 * fisherCapital(g) * marginal(1)));
             const mine = Math.round(P2 * 0.6);
-            g.fish += mine;
+            addFood(g, 'fish', mine);
             updateHUD();
             addFloater('+' + mine + '🐟', '#42a5f5', v.position.clone().add(new THREE.Vector3(0, 2.8, 0)));
           }
@@ -1349,7 +1349,7 @@ function setMoveTarget(p) {
 
 // ---------- 即时采集(果丛 / 成熟农田):点击任务与空格共用 ----------
 function harvestBush(t) {
-  g.grain += CFG.BUSH_GRAIN;
+  addFood(g, 'grain', CFG.BUSH_GRAIN);
   queueRegrow('bush', t);
   scene.remove(t);
   removeAt(bushes, t);
@@ -1584,6 +1584,11 @@ function updateHUD() {
   $('house').textContent = `${g.pop} / ${hutCapacity(g)}`;
   $('fish').textContent = g.fish;
   $('grain').textContent = g.grain;
+  // 食物新鲜度颜色
+  const fishFresh = foodFreshness(g, 'fish');
+  const grainFresh = foodFreshness(g, 'grain');
+  $('fish').style.color = g.fish > 0 ? (fishFresh > 0.6 ? '#8fe3a0' : fishFresh > 0.3 ? '#ffd766' : '#ff6b6b') : '';
+  $('grain').style.color = g.grain > 0 ? (grainFresh > 0.6 ? '#8fe3a0' : grainFresh > 0.3 ? '#ffd766' : '#ff6b6b') : '';
   $('wood').textContent = g.wood;
   $('stone').textContent = g.stone;
   $('net').textContent = (g.hasNet ? '渔网 ×2' : '徒手 ×1') + (g.craftingDay ? '　🧵 手在编网(成功率减半,睡一觉恢复)' : '');

@@ -39,6 +39,10 @@ export const CFG = {
   PROSPER_PER_HUT: 15,
   PROSPER_GRANARY: 30,
   PROSPER_DOCK: 30,
+  // 食物保质期(天)
+  FISH_SHELF_LIFE: 3,
+  GRAIN_SHELF_LIFE: 7,
+  ROOT_SHELF_LIFE: 10,
   // 天气系统
   WEATHER_MIN_DAYS: 2,              // 每种天气最少持续天数
   WEATHER_MAX_DAYS: 3,              // 每种天气最多持续天数
@@ -46,6 +50,60 @@ export const CFG = {
   TREE_STUMP_REGROW: 10,            // 树桩重生天数
 };
 CFG.FISH_RESPAWN = 3; // 每天自然回游
+
+// ---------- 食物保质期系统 ----------
+// 计算食物最终保质期(含仓储加成)
+export function calcShelfLife(baseLife, g) {
+  let life = baseLife;
+  if (g.granary > 0) life *= 2;  // 粮仓 ×2
+  if (g.dock > 0 && g.savings > 0) life *= 1; // 鱼仓不影响(仅鱼),此处预留
+  return Math.floor(life);
+}
+// 添加食物到库存(带保质期)
+export function addFood(g, type, qty) {
+  if (qty <= 0) return;
+  const baseLife = type === 'fish' ? CFG.FISH_SHELF_LIFE
+    : type === 'grain' ? CFG.GRAIN_SHELF_LIFE
+    : CFG.ROOT_SHELF_LIFE;
+  const life = calcShelfLife(baseLife, g);
+  g.foodStock.push({ type, qty, expiresAt: g.day + life });
+  // 同步到旧字段(兼容)
+  if (type === 'fish') g.fish += qty;
+  else if (type === 'grain') g.grain += qty;
+}
+// 每天结算:过期食物扣除
+export function expireFood(g) {
+  const ev = [];
+  let expiredFish = 0, expiredGrain = 0, expiredRoot = 0;
+  for (let i = g.foodStock.length - 1; i >= 0; i--) {
+    const batch = g.foodStock[i];
+    if (g.day >= batch.expiresAt) {
+      if (batch.type === 'fish') { g.fish -= batch.qty; expiredFish += batch.qty; }
+      else if (batch.type === 'grain') { g.grain -= batch.qty; expiredGrain += batch.qty; }
+      g.foodStock.splice(i, 1);
+    }
+  }
+  if (expiredFish > 0) ev.push(`🐟 ${expiredFish} 条鱼变质了!`);
+  if (expiredGrain > 0) ev.push(`🌾 ${expiredGrain} 份谷穗发霉了!`);
+  if (expiredRoot > 0) ev.push(`🥔 ${expiredRoot} 份根茎腐烂了!`);
+  return ev;
+}
+// 获取某种食物的新鲜度百分比(0~1,用于HUD颜色)
+export function foodFreshness(g, type) {
+  const batches = g.foodStock.filter(b => b.type === type);
+  if (batches.length === 0) return 1;
+  const baseLife = type === 'fish' ? CFG.FISH_SHELF_LIFE
+    : type === 'grain' ? CFG.GRAIN_SHELF_LIFE
+    : CFG.ROOT_SHELF_LIFE;
+  const life = calcShelfLife(baseLife, g);
+  let totalFresh = 0, totalQty = 0;
+  for (const b of batches) {
+    const remaining = b.expiresAt - g.day;
+    totalFresh += (remaining / life) * b.qty;
+    totalQty += b.qty;
+  }
+  return totalQty > 0 ? totalFresh / totalQty : 1;
+}
 
 // ---------- 天气系统 ----------
 export const WEATHER_TYPES = ['sunny', 'cloudy', 'rainy', 'stormy'];
@@ -109,6 +167,8 @@ export function newGame() {
     prosperity: 0,
     starveStreak: 0,
     events: [],
+    // 食物库存(按批次追踪保质期): [{type:'fish'|'grain'|'root', qty:N, expiresAt:day}]
+    foodStock: [],
     // 天气系统
     weather: 'sunny',
     weatherTimer: 3,        // 距下次天气变化的天数
@@ -140,7 +200,7 @@ export function canHouse(g) { return g.pop < hutCapacity(g) || g.pop === 1; } //
 // ---------- 玩家动作 ----------
 export function catchOne(g) {
   const yieldN = CFG.FISH_PER_CATCH[g.dock ? 2 : g.hasNet ? 1 : 0];
-  g.fish += yieldN;
+  addFood(g, 'fish', yieldN);
   return { ok: true, msg: `捕到 ${yieldN} 条鱼!(徒手×1 / 渔网×2 / 码头×3)` };
 }
 
@@ -151,7 +211,7 @@ export function plantCrop(g) {
 }
 
 export function harvestCrop(g) {
-  g.grain += CFG.CROP_YIELD;
+  addFood(g, 'grain', CFG.CROP_YIELD);
   return { ok: true, msg: `收获 ${CFG.CROP_YIELD} 份谷穗!` };
 }
 
@@ -249,9 +309,13 @@ export function advanceDay(g) {
   }
   const wInfo = WEATHER_INFO[g.weather];
 
+  // 0.5 食物过期结算
+  const expireEv = expireFood(g);
+  ev.push(...expireEv);
+
   // 1. 散工觅食(自给自足:每天产1份、吃1份)
   for (let i = 0; i < idle; i++) {
-    if (Math.random() < 0.55) g.fish++; else g.grain++;
+    if (Math.random() < 0.55) addFood(g, 'fish', 1); else addFood(g, 'grain', 1);
   }
   if (idle > 0) ev.push(`散工们觅食自给(${idle} 人,产多少吃多少)`);
 
@@ -261,7 +325,7 @@ export function advanceDay(g) {
     for (let i = 1; i <= g.workers.fisher; i++) {
       const P = Math.max(1, Math.round(2 * fisherCapital(g) * marginal(i) * wInfo.fishMul)); // 产量=2×资本×效率×天气
       const mine = Math.round(P * 0.6);   // 玩家拿六成
-      g.fish += mine; rep.fisher += mine;
+      addFood(g, 'fish', mine); rep.fisher += mine;
       if (P < 2) extraEat++;              // 徒手+效率衰减时收成差,渔夫还得吃库存
     }
     const weatherNote = wInfo.fishMul < 1 ? '(暴风雨减产)' : '';
@@ -339,13 +403,14 @@ export function advanceDay(g) {
 // ---------- 存档 / 读档(Phase 2.1.1) ----------
 export function serializeGame(g) {
   return JSON.stringify({
-    v: 3,
+    v: 4,
     day: g.day, fish: g.fish, grain: g.grain, wood: g.wood, stone: g.stone,
     hasNet: g.hasNet, pop: g.pop, huts: g.huts, granary: g.granary, dock: g.dock,
     craftingDay: g.craftingDay,
     savings: g.savings, interestLast: g.interestLast, granaryHintShown: g.granaryHintShown,
     workers: { ...g.workers }, prosperity: g.prosperity, starveStreak: g.starveStreak,
     weather: g.weather || 'sunny', weatherTimer: g.weatherTimer || 3,
+    foodStock: g.foodStock || [],
   });
 }
 export function deserializeGame(json) {
