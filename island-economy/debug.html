@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head><body>
+<div id="out" style="font:14px monospace;white-space:pre;padding:20px;"></div>
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+<script type="module">
+const out = document.getElementById('out');
+function log(msg) { out.textContent += msg + '\n'; console.log(msg); }
+try {
+  log('1. Loading game.js...');
+  const game = await import('./src/game.js');
+  log('2. game.js loaded OK. Exports: ' + Object.keys(game).join(', '));
+  log('3. WEATHER_INFO: ' + JSON.stringify(game.WEATHER_INFO));
+  log('4. Loading main.js...');
+  await import('./src/main.js?v=99');
+  log('5. main.js loaded OK!');
+} catch(e) {
+  log('ERROR: ' + e.message);
+  log('Stack: ' + e.stack);
+}
+</script>
+</body></html>

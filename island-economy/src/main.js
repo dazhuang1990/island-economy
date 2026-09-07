@@ -5,8 +5,75 @@ const g = newGame();
 
 // ---------- 场景基础 ----------
 const scene = new THREE.Scene();
+const SKY_COLORS = {
+  sunny:  { bg: 0x87ceeb, fog: 0x87ceeb, ambient: 0.9, sun: 0.8 },
+  cloudy: { bg: 0x9eaab5, fog: 0x9eaab5, ambient: 0.7, sun: 0.5 },
+  rainy:  { bg: 0x6b7b8a, fog: 0x6b7b8a, ambient: 0.5, sun: 0.3 },
+  stormy: { bg: 0x3d4a54, fog: 0x3d4a54, ambient: 0.3, sun: 0.15 },
+};
 scene.background = new THREE.Color(0x87ceeb);
 scene.fog = new THREE.Fog(0x87ceeb, 40, 90);
+
+// 天气视觉效果:雨滴粒子
+const RAIN_COUNT = 300;
+const rainGeo = new THREE.BufferGeometry();
+const rainPositions = new Float32Array(RAIN_COUNT * 3);
+for (let i = 0; i < RAIN_COUNT; i++) {
+  rainPositions[i * 3] = (Math.random() - 0.5) * 40;
+  rainPositions[i * 3 + 1] = Math.random() * 20;
+  rainPositions[i * 3 + 2] = (Math.random() - 0.5) * 40;
+}
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+const rainMat = new THREE.PointsMaterial({ color: 0xaaccff, size: 0.15, transparent: true, opacity: 0.6 });
+const rainSystem = new THREE.Points(rainGeo, rainMat);
+rainSystem.visible = false;
+scene.add(rainSystem);
+
+// 闪电效果(全屏白闪)
+let lightningTimer = 0;
+let lightningFlash = false;
+
+// 天气视觉更新函数
+function updateWeatherVisuals(dt) {
+  const sc = SKY_COLORS[g.weather] || SKY_COLORS.sunny;
+  // 平滑过渡天空颜色
+  const targetBg = new THREE.Color(sc.bg);
+  scene.background.lerp(targetBg, dt * 2);
+  scene.fog.color.lerp(targetBg, dt * 2);
+  hemi.intensity += (sc.ambient - hemi.intensity) * dt * 2;
+  sun.intensity += (sc.sun - sun.intensity) * dt * 2;
+
+  // 雨滴
+  const isRaining = g.weather === 'rainy' || g.weather === 'stormy';
+  rainSystem.visible = isRaining;
+  if (isRaining) {
+    const pos = rainGeo.attributes.position.array;
+    const speed = g.weather === 'stormy' ? 25 : 15;
+    for (let i = 0; i < RAIN_COUNT; i++) {
+      pos[i * 3 + 1] -= speed * dt;
+      if (pos[i * 3 + 1] < 0) {
+        pos[i * 3 + 1] = 18 + Math.random() * 2;
+        pos[i * 3] = player.pos.x + (Math.random() - 0.5) * 40;
+        pos[i * 3 + 2] = player.pos.z + (Math.random() - 0.5) * 40;
+      }
+    }
+    rainGeo.attributes.position.needsUpdate = true;
+    rainMat.opacity = g.weather === 'stormy' ? 0.8 : 0.5;
+  }
+
+  // 闪电(暴风雨随机闪白屏)
+  if (g.weather === 'stormy') {
+    lightningTimer -= dt;
+    if (lightningTimer <= 0) {
+      lightningTimer = 3 + Math.random() * 8; // 3~11秒闪一次
+      lightningFlash = true;
+    }
+    if (lightningFlash) {
+      scene.background.set(0xffffff);
+      lightningFlash = false;
+    }
+  }
+}
 
 // 游泳系统常量
 const SAND_BORDER = 12.3;           // 水线:超过即下水(陆地限位12.5,刚好无缝衔接;草地≤9,沙滩9~13)
@@ -1886,6 +1953,8 @@ function loop() {
 
   // 动画:水 / 岛民闲逛 / 移动标记脉动
   water.position.y = 0.45 + Math.sin(now / 1000) * 0.05;
+  // 天气视觉效果
+  updateWeatherVisuals(dt);
   if (targetMarker.visible) targetMarker.scale.setScalar(1 + Math.sin(now / 200) * 0.12);
   if (selectRing.visible) selectRing.scale.setScalar(1 + Math.sin(now / 180) * 0.1);
   // 岛民更新:散工闲逛 / 帮工走向工作点干活动画 + 产出飘字上飘
