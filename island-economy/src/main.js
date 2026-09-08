@@ -75,6 +75,186 @@ function updateWeatherVisuals(dt) {
   }
 }
 
+// ---------- 出海探索系统 ----------
+let currentScene = 'main'; // 'main' | 'ocean'
+const OCEAN_SIZE = 200;
+const ISLANDS = [
+  { id: 'tropical', name: '热带岛', x: 40, z: -30, radius: 8, color: 0x4caf50, discovered: false, desc: '椰林沙滩,有香料和稀有水果' },
+  { id: 'volcano',  name: '火山岛', x: -50, z: 50,  radius: 10, color: 0xd84315, discovered: false, desc: '火山岩地貌,有铜矿和温泉' },
+  { id: 'snow',     name: '冰雪岛', x: 60, z: 70,   radius: 9, color: 0xe0e0e0, discovered: false, desc: '雪山冰湖,有煤矿和冰块' },
+];
+const oceanScene = new THREE.Scene();
+oceanScene.background = new THREE.Color(0x1a6b8a);
+oceanScene.fog = new THREE.Fog(0x1a6b8a, 60, 150);
+const oceanHemi = new THREE.HemisphereLight(0xffffff, 0x4488aa, 0.8);
+oceanScene.add(oceanHemi);
+const oceanSun = new THREE.DirectionalLight(0xffffff, 0.6);
+oceanSun.position.set(30, 50, 20);
+oceanScene.add(oceanSun);
+
+// 大海海面
+const oceanWater = new THREE.Mesh(
+  new THREE.PlaneGeometry(OCEAN_SIZE * 2, OCEAN_SIZE * 2),
+  new THREE.MeshLambertMaterial({ color: 0x1565c0, transparent: true, opacity: 0.85 })
+);
+oceanWater.rotation.x = -Math.PI / 2;
+oceanWater.position.y = 0;
+oceanScene.add(oceanWater);
+
+// 岛屿剪影(远处看到的低模)
+const islandMeshes = [];
+for (const isl of ISLANDS) {
+  const grp = new THREE.Group();
+  // 岛屿主体(锥形山)
+  const mountain = new THREE.Mesh(
+    new THREE.ConeGeometry(isl.radius, isl.radius * 1.5, 8),
+    new THREE.MeshLambertMaterial({ color: isl.color })
+  );
+  mountain.position.y = isl.radius * 0.75;
+  grp.add(mountain);
+  // 沙滩环
+  const beach = new THREE.Mesh(
+    new THREE.CylinderGeometry(isl.radius + 1, isl.radius + 2, 0.5, 16),
+    new THREE.MeshLambertMaterial({ color: 0xe2c290 })
+  );
+  beach.position.y = 0.25;
+  grp.add(beach);
+  grp.position.set(isl.x, 0, isl.z);
+  grp.userData = { island: isl };
+  oceanScene.add(grp);
+  islandMeshes.push(grp);
+}
+
+// 玩家的船
+const boatMesh = new THREE.Group();
+const boatBody = new THREE.Mesh(
+  new THREE.BoxGeometry(2, 0.5, 4),
+  new THREE.MeshLambertMaterial({ color: 0x8d6e63 })
+);
+boatBody.position.y = 0.3;
+const boatMast = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.08, 0.08, 3, 6),
+  new THREE.MeshLambertMaterial({ color: 0x5d4037 })
+);
+boatMast.position.y = 2;
+const boatSail = new THREE.Mesh(
+  new THREE.PlaneGeometry(1.5, 2),
+  new THREE.MeshLambertMaterial({ color: 0xfafafa, side: THREE.DoubleSide })
+);
+boatSail.position.set(0.8, 2.2, 0);
+boatSail.rotation.y = Math.PI / 2;
+boatMesh.add(boatBody, boatMast, boatSail);
+boatMesh.visible = false;
+oceanScene.add(boatMesh);
+
+// 大海漂浮物
+const oceanFloaters = [];
+function spawnOceanFloater() {
+  const types = ['wood', 'fish', 'iron'];
+  const type = types[Math.floor(Math.random() * types.length)];
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(0.4, 0.3, 0.4),
+    new THREE.MeshLambertMaterial({ color: type === 'iron' ? 0x9e9e9e : type === 'fish' ? 0xff9800 : 0x8d6e63 })
+  );
+  const x = (Math.random() - 0.5) * OCEAN_SIZE * 1.5;
+  const z = (Math.random() - 0.5) * OCEAN_SIZE * 1.5;
+  mesh.position.set(x, 0.3, z);
+  mesh.userData = { type, collected: false };
+  oceanScene.add(mesh);
+  oceanFloaters.push(mesh);
+}
+for (let i = 0; i < 15; i++) spawnOceanFloater();
+
+// 场景切换
+let boatPos = { x: 0, z: 0 };
+let boatYaw = 0;
+let islandDiscoveryShown = {};
+function enterOcean() {
+  currentScene = 'ocean';
+  boatMesh.visible = true;
+  boatPos = { x: 0, z: 0 };
+  boatYaw = 0;
+  boatMesh.position.set(0, 0, 0);
+  boatMesh.rotation.y = 0;
+  renderer.setAnimationLoop(oceanLoop);
+}
+function enterMain() {
+  currentScene = 'main';
+  boatMesh.visible = false;
+  renderer.setAnimationLoop(loop);
+}
+function checkIslandDiscovery() {
+  for (const isl of ISLANDS) {
+    if (isl.discovered) continue;
+    const dist = Math.hypot(boatPos.x - isl.x, boatPos.z - isl.z);
+    if (dist < isl.radius + 8) {
+      isl.discovered = true;
+      islandDiscoveryShown[isl.id] = true;
+      flash(`🏝️ 发现了新岛屿: ${isl.name}! ${isl.desc}`);
+      flash('已标记在地图上,之后可从码头菜单快速前往。');
+      // 保存发现状态
+      if (!g.discoveredIslands) g.discoveredIslands = {};
+      g.discoveredIslands[isl.id] = true;
+      saveWorld();
+    }
+  }
+}
+
+// 大海主循环
+let lastOcean = performance.now();
+function oceanLoop() {
+  const now = performance.now(), dt = Math.min(0.05, (now - lastOcean) / 1000); lastOcean = now;
+  // 船移动
+  const speed = 12;
+  const turnSpeed = 1.5;
+  if (keys['KeyA'] || keys['ArrowLeft']) boatYaw += turnSpeed * dt;
+  if (keys['KeyD'] || keys['ArrowRight']) boatYaw -= turnSpeed * dt;
+  const fwd = new THREE.Vector3(Math.sin(boatYaw), 0, Math.cos(boatYaw));
+  if (keys['KeyW'] || keys['ArrowUp']) { boatPos.x += fwd.x * speed * dt; boatPos.z += fwd.z * speed * dt; }
+  if (keys['KeyS'] || keys['ArrowDown']) { boatPos.x -= fwd.x * speed * dt * 0.5; boatPos.z -= fwd.z * speed * dt * 0.5; }
+  boatMesh.position.set(boatPos.x, 0, boatPos.z);
+  boatMesh.rotation.y = boatYaw;
+  boatMesh.position.y = Math.sin(now / 800) * 0.15; // 船身随浪起伏
+  // 相机跟随船
+  camera.position.set(boatPos.x - Math.sin(boatYaw) * 8, 6, boatPos.z - Math.cos(boatYaw) * 8);
+  camera.lookAt(boatPos.x, 1, boatPos.z);
+  // 海面波动
+  oceanWater.position.y = Math.sin(now / 1200) * 0.1;
+  // 岛屿发现
+  checkIslandDiscovery();
+  // 漂浮物随浪漂动
+  for (const f of oceanFloaters) {
+    if (f.userData.collected) continue;
+    f.position.y = 0.3 + Math.sin(now / 600 + f.position.x) * 0.1;
+    // 检测是否靠近(可打捞)
+    const dist = Math.hypot(boatPos.x - f.position.x, boatPos.z - f.position.z);
+    if (dist < 3 && !f.userData.collected) {
+      f.userData.collected = true;
+      f.visible = false;
+      if (f.userData.type === 'iron') {
+        g.ironFragments = (g.ironFragments || 0) + 1;
+        flash('⛏️ 捞到铁矿石碎片!');
+      } else if (f.userData.type === 'fish') {
+        addFood(g, 'fish', 2);
+        flash('🐟 捞到 2 条鱼!');
+      } else {
+        g.wood += 3;
+        flash('🪵 捞到 3 个木头!');
+      }
+      updateHUD();
+    }
+  }
+  // 按 Esc 返回主岛
+  if (keys['Escape']) {
+    flash('⛵ 返航回主岛。');
+    enterMain();
+    return;
+  }
+  // 天气视觉
+  updateWeatherVisuals(dt);
+  renderer.render(oceanScene, camera);
+}
+
 // 游泳系统常量
 const SAND_BORDER = 12.3;           // 水线:超过即下水(陆地限位12.5,刚好无缝衔接;草地≤9,沙滩9~13)
 const DEEP_WATER = 20;              // 近海外径(体素岛 R=13 + 7),超出禁止;R 在下方体素岛段落定义,此处不可引用
@@ -1623,6 +1803,7 @@ function updateHUD() {
   const show = (id, cond) => { const el = $(id); if (el) el.style.display = cond ? '' : 'none'; };
   show('bBoat', g.dock && !g.hasBoat);
   show('bDeepFish', g.hasBoat);
+  show('bSail', g.hasBoat);
   show('bWorkbench', (g.iron || 0) >= 3 && !g.hasWorkbench);
   show('bWell', g.hasWorkbench && !g.hasWell);
   show('bFurnace', g.hasWorkbench && !g.hasFurnace);
@@ -2118,6 +2299,13 @@ $('bGranary').onclick = () => {
 $('bDock').onclick = () => { const r = buildDock(g); if (r.ok) buildDockMesh(); flash(r.msg); updateHUD(); };
 $('bBoat').onclick = () => { const r = buildBoat(g); flash(r.msg); updateHUD(); };
 $('bDeepFish').onclick = () => { const r = deepFish(g); flash(r.msg); updateHUD(); };
+$('bSail').onclick = () => {
+  if (g.weather === 'stormy') { flash('⛈️ 暴风雨天气无法出海!'); return; }
+  const foodNeed = (g.pop - 1) * 5;
+  if (foodTotal(g) < foodNeed) flash(`⚠️ 食物可能不够帮工消耗(需${foodNeed}份),确认要出海吗?`);
+  flash('⛵ 出海了!WASD控制船,探索海面发现新岛屿,Esc返航。');
+  enterOcean();
+};
 $('bWorkbench').onclick = () => { const r = buildWorkbench(g); flash(r.msg); updateHUD(); };
 $('bWell').onclick = () => { const r = buildWell(g); flash(r.msg); updateHUD(); };
 $('bFurnace').onclick = () => { const r = buildFurnace(g); flash(r.msg); updateHUD(); };
