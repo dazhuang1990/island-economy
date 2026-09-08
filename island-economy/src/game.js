@@ -454,7 +454,52 @@ export function buildFurnace(g) {
   return { ok: true, msg: '🔥 冶炼炉建好了!可以生产精炼铁。' };
 }
 
-// ---------- 铁矿石系统 ----------
+// 精炼铁生产(铁矿石 + 木炭)
+export function smeltIron(g) {
+  if (!g.hasFurnace) return { ok: false, msg: '❌ 需要先建冶炼炉。' };
+  if ((g.iron || 0) < 1) return { ok: false, msg: '❌ 没有铁矿石了(深海钓鱼获得碎片合成)。' };
+  if (g.wood < 2) return { ok: false, msg: '❌ 需要 2 个木头做木炭。' };
+  g.iron -= 1; g.wood -= 2;
+  g.refinedIron = (g.refinedIron || 0) + 1;
+  return { ok: true, msg: `🔥 精炼成功!消耗 1 铁矿石 + 2 木头 → 精炼铁 ${g.refinedIron} 块。` };
+}
+
+// 商船建造
+export function buildTrader(g) {
+  if (g.hasTrader) return { ok: false, msg: '已经有商船了。' };
+  if (!g.hasFurnace) return { ok: false, msg: '❌ 需要先建冶炼炉。' };
+  if ((g.refinedIron || 0) < 5) return { ok: false, msg: `❌ 精炼铁不够:需要 5,现有 ${g.refinedIron || 0}。` };
+  if (g.wood < 50) return { ok: false, msg: `❌ 木头不够:需要 50,现有 ${g.wood}。` };
+  g.refinedIron -= 5; g.wood -= 50;
+  g.hasTrader = true;
+  return { ok: true, msg: '🚢 商船建好了!可以远洋探索,前往其他岛屿进行贸易。' };
+}
+
+// 钢制工具(不需要建筑,有精炼铁就能做)
+export function craftSteelTool(g, toolName) {
+  if ((g.refinedIron || 0) < 2) return { ok: false, msg: `❌ 需要 2 块精炼铁,现有 ${g.refinedIron || 0}。` };
+  g.refinedIron -= 2;
+  g.steelTools = g.steelTools || {};
+  g.steelTools[toolName] = true;
+  return { ok: true, msg: `⚒️ ${toolName}打造完成!(精炼铁 -2)` };
+}
+
+// 获取采集/建造效率倍率(含工具加成)
+export function getEfficiency(g, type) {
+  let mul = 1;
+  const tools = g.steelTools || {};
+  if (type === 'wood') {
+    if (tools['钢斧']) mul *= 4;      // 铁斧×2 × 钢斧×2 = ×4
+    else if (g.hasWorkbench) mul *= 2; // 铁斧
+  } else if (type === 'stone') {
+    if (tools['钢镐']) mul *= 4;
+    else if (g.hasWorkbench) mul *= 2;
+  } else if (type === 'crop') {
+    if (tools['钢锄']) mul *= 2;
+    else if (g.hasWorkbench) mul *= 1.5;
+  }
+  return mul;
+}
 // PRD 伪随机:每次未获得铁矿石碎片,下次概率递增
 export function ironDropChance(count) {
   return Math.min(CFG.IRON_PRD_CAP, CFG.IRON_PRD_BASE + count * CFG.IRON_PRD_STEP);
@@ -673,6 +718,7 @@ export function serializeGame(g) {
     hasFurnace: g.hasFurnace || false, hasTrader: g.hasTrader || false,
     ironFragments: g.ironFragments || 0, iron: g.iron || 0, refinedIron: g.refinedIron || 0,
     deepFishCount: g.deepFishCount || 0,
+    steelTools: g.steelTools || {},
   });
 }
 export function deserializeGame(json) {

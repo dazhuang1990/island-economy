@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, buildBasket, buildBoat, buildWorkbench, buildWell, buildFurnace, deepFish, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO, addFood, foodFreshness, workerHealthMul, useHerb, TECH_TREE, getCurrentGoal } from './game.js';
+import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, buildBasket, buildBoat, buildWorkbench, buildWell, buildFurnace, smeltIron, buildTrader, craftSteelTool, getEfficiency, deepFish, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO, addFood, foodFreshness, workerHealthMul, useHerb, TECH_TREE, getCurrentGoal } from './game.js';
 
 const g = newGame();
 
@@ -1411,26 +1411,28 @@ function performHit() {
   if (a.type === 'chop') {
     t.rotation.z = 0.12;  // 树晃动(主循环里衰减)
     if (a.hits >= a.need) {
-      g.wood += CFG.TREE_WOOD;
+      const woodAmt = Math.round(CFG.TREE_WOOD * getEfficiency(g, 'wood'));
+      g.wood += woodAmt;
       queueRegrow('tree', t);
       fallingTrees.push({ tree: t, t: 0 });
       removeAt(trees, t);
       removeAt(interactives, t);
       releaseSlot(t);
-      flash(`树倒了!+${CFG.TREE_WOOD} 木头,树桩 ${CFG.TREE_REGROW} 天后长回。`);
+      flash(`树倒了!+${woodAmt} 木头,树桩 ${CFG.TREE_REGROW} 天后长回。`);
       cancelAction();
     } else flash(`挥斧砍树 ${a.hits}/${a.need}…`);
   } else if (a.type === 'mine') {
     burstSparks(t.position);
     t.rotation.z = 0.15;
     if (a.hits >= a.need) {
-      g.stone += CFG.ROCK_STONE;
+      const stoneAmt = Math.round(CFG.ROCK_STONE * getEfficiency(g, 'stone'));
+      g.stone += stoneAmt;
       queueRegrow('rock', t);
       scene.remove(t);
       removeAt(rocks, t);
       removeAt(interactives, t);
       releaseSlot(t);
-      flash(`石头碎裂!+${CFG.ROCK_STONE}。`);
+      flash(`石头碎裂!+${stoneAmt}。`);
       cancelAction();
     } else flash(`锤击岩石 ${a.hits}/${a.need}…`);
   }
@@ -1439,7 +1441,8 @@ function performHit() {
 // 帮工实时采集(Phase 2.1.2):帮工不刷"挥斧 N/N"飘字,只结算产出
 function workerChopTree(t) {
   if (!t || !t.parent) return false;
-  g.wood += CFG.TREE_WOOD;
+  const woodAmt = Math.round(CFG.TREE_WOOD * getEfficiency(g, 'wood'));
+  g.wood += woodAmt;
   queueRegrow('tree', t);
   fallingTrees.push({ tree: t, t: 0 });
   removeAt(trees, t);
@@ -1450,7 +1453,8 @@ function workerChopTree(t) {
 }
 function workerMineRock(r) {
   if (!r || !r.parent) return false;
-  g.stone += CFG.ROCK_STONE;
+  const stoneAmt = Math.round(CFG.ROCK_STONE * getEfficiency(g, 'stone'));
+  g.stone += stoneAmt;
   queueRegrow('rock', r);
   scene.remove(r);
   removeAt(rocks, r);
@@ -1807,6 +1811,9 @@ function updateHUD() {
   show('bWorkbench', (g.iron || 0) >= 3 && !g.hasWorkbench);
   show('bWell', g.hasWorkbench && !g.hasWell);
   show('bFurnace', g.hasWorkbench && !g.hasFurnace);
+  show('bSmelt', g.hasFurnace);
+  show('bTrader', g.hasFurnace && !g.hasTrader);
+  show('bSteelTools', g.hasWorkbench && (g.refinedIron || 0) >= 2);
   // 铁矿石 HUD
   const ironEl = $('ironInfo');
   if (ironEl) {
@@ -2309,6 +2316,17 @@ $('bSail').onclick = () => {
 $('bWorkbench').onclick = () => { const r = buildWorkbench(g); flash(r.msg); updateHUD(); };
 $('bWell').onclick = () => { const r = buildWell(g); flash(r.msg); updateHUD(); };
 $('bFurnace').onclick = () => { const r = buildFurnace(g); flash(r.msg); updateHUD(); };
+$('bSmelt').onclick = () => { const r = smeltIron(g); flash(r.msg); updateHUD(); };
+$('bTrader').onclick = () => { const r = buildTrader(g); flash(r.msg); updateHUD(); };
+$('bSteelTools').onclick = () => {
+  const tools = ['钢斧', '钢镐', '钢锄'];
+  const available = tools.filter(t => !(g.steelTools || {})[t]);
+  if (available.length === 0) { flash('⚒️ 所有钢制工具已打造完毕!'); return; }
+  const tool = available[0];
+  const r = craftSteelTool(g, tool);
+  flash(r.msg);
+  updateHUD();
+};
 $('bDay').onclick = () => sleep();
 $('bWork').onclick = () => toggleWorkerPanel();
 // 鱼仓面板按钮
