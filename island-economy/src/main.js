@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, buildBasket, buildFence, buildBoat, buildWorkbench, buildWell, buildFurnace, smeltIron, buildTrader, craftSteelTool, getEfficiency, deepFish, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO, addFood, foodFreshness, workerHealthMul, useHerb, TECH_TREE, getCurrentGoal, ISLAND_DATA, arriveIsland } from './game.js';
+import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, buildBasket, buildFence, buildBoat, buildWorkbench, buildWell, buildFurnace, smeltIron, buildTrader, craftSteelTool, getEfficiency, deepFish, advanceDay, tierOf, hutCapacity, foodTotal, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO, addFood, foodFreshness, workerHealthMul, useHerb, TECH_TREE, getCurrentGoal, ISLAND_DATA, arriveIsland } from './game.js';
 
 const g = newGame();
 
