@@ -95,6 +95,10 @@ export const CFG = {
   NET_COST: { wood: 2, fiber: 0 },  // 渔网用木头编(也可以改吃鱼成本)
   BASKET_COST: { wood: 4 },         // 采集篓
   BASKET_MAX: 2,                    // 每人岛最多2个采集篓
+  FENCE_COST: { wood: 6 },         // 围栏
+  PIG_EVENT_CHANCE: 0.30,          // 暴风雨后野猪事件概率
+  PIG_EAT_DAYS_MIN: 1,             // 野猪啃食最短天数
+  PIG_EAT_DAYS_MAX: 2,             // 野猪啃食最长天数
   BASKET_MIN_YIELD: 1,              // 每天最少产出
   BASKET_MAX_YIELD: 2,              // 每天最多产出
   // 人口与生存
@@ -299,6 +303,11 @@ export function newGame() {
     fish: 0, grain: 0, wood: 0, stone: 0, root: 0,
     hasNet: false,
     baskets: 0,              // 采集篓数量
+    fences: 0,               // 围栏数量(每块田一个)
+    // 野猪事件
+    pigEvent: false,         // 当前是否有野猪
+    pigTargetPlot: -1,       // 被啃的田块索引(-1=无)
+    pigDaysLeft: 0,          // 剩余啃食天数
     // 科技树进度
     hasBoat: false,          // 造船完成
     hasWorkbench: false,     // 工具台完成
@@ -423,7 +432,45 @@ export function buildBasket(g) {
   return { ok: true, msg: `采集篓建好了!(第 ${g.baskets}/${CFG.BASKET_MAX} 个,每天自动采集1~2份野生根茎)` };
 }
 
-// ---------- 造船/铁器 ----------
+// 围栏建造(给一块农田建围栏,防御野猪)
+export function buildFence(g) {
+  const c = canBuild(g, 'FENCE'); if (!c.ok) return c;
+  g.fences++;
+  pay(g, c.cost);
+  return { ok: true, msg: `围栏建好了!(已保护 ${g.fences} 块田,野猪啃不了了)` };
+}
+// 野猪事件检查(在 advanceDay 中暴风雨后调用)
+export function checkPigEvent(g) {
+  const ev = [];
+  // 已有野猪:倒计时
+  if (g.pigEvent) {
+    g.pigDaysLeft--;
+    if (g.pigDaysLeft <= 0) {
+      g.pigEvent = false; g.pigTargetPlot = -1;
+      ev.push('🐗 野猪吃饱跑走了,农田恢复正常。');
+    } else {
+      ev.push(`🐗 野猪还在啃农田!还有 ${g.pigDaysLeft} 天。(有围栏可完全防御)`);
+    }
+    return ev;
+  }
+  // 暴风雨后有概率触发
+  if (g.weather !== 'stormy') return ev;
+  if (plots.length === 0 || g.fences >= plots.length) return ev; // 全围上了没野猪的事
+  if (Math.random() > CFG.PIG_EVENT_CHANCE) return ev;
+  // 找一块没围栏的田
+  const unFenced = [];
+  for (let i = 0; i < plots.length; i++) {
+    if (i >= g.fences) unFenced.push(i); // 简化:前N块有围栏
+  }
+  if (unFenced.length === 0) return ev;
+  g.pigEvent = true;
+  g.pigTargetPlot = unFenced[Math.floor(Math.random() * unFenced.length)];
+  g.pigDaysLeft = CFG.PIG_EAT_DAYS_MIN + Math.floor(Math.random() * (CFG.PIG_EAT_DAYS_MAX - CFG.PIG_EAT_DAYS_MIN + 1));
+  ev.push(`🐗 暴风雨引来了一只野猪!正在啃第 ${g.pigTargetPlot + 1} 块农田,持续 ${g.pigDaysLeft} 天。(建围栏可防御,或等它吃完)`);
+  return ev;
+}
+
+// 造船/铁器 ----------
 // canBuild 支持带 iron 的造价
 function canBuildAdv(g, costKey) {
   const cost = CFG[costKey];
@@ -606,6 +653,10 @@ export function advanceDay(g) {
   const expireEv = expireFood(g);
   ev.push(...expireEv);
 
+  // 0.6 野猪事件
+  const pigEv = checkPigEvent(g);
+  ev.push(...pigEv);
+
   // 1. 散工觅食(自给自足:每天产1份、吃1份)
   for (let i = 0; i < idle; i++) {
     if (Math.random() < 0.55) addFood(g, 'fish', 1); else addFood(g, 'grain', 1);
@@ -692,11 +743,14 @@ export function advanceDay(g) {
     ev.push('💭 有余粮了,但没棚屋……盖间棚屋才会有人愿意上岛。');
   }
 
-  // 6. 作物生长(age=-1 表示荒田,不生长);雨天加速(+1天),暴风雨暂停(不+)
+  // 6. 作物生长;雨天加速,暴风雨暂停,野猪啃食的田暂停
   let ripened = 0;
-  for (const c of g.crops) {
+  for (let i = 0; i < g.crops.length; i++) {
+    const c = g.crops[i];
     if (!c.ready && c.age >= 0) {
-      const grow = 1 + wInfo.cropBonus; // 晴天/阴天=1,雨天=2,暴风雨=0
+      // 野猪啃食:该田暂停生长
+      if (g.pigEvent && g.pigTargetPlot === i) continue;
+      const grow = 1 + wInfo.cropBonus;
       if (grow > 0) { c.age += grow; if (c.age >= CFG.CROP_DAYS) { c.ready = true; ripened++; } }
     }
   }
@@ -735,6 +789,7 @@ export function serializeGame(g) {
     steelTools: g.steelTools || {},
     spice: g.spice || 0, rareFruit: g.rareFruit || 0, copper: g.copper || 0, ice: g.ice || 0, coal: g.coal || 0,
     discoveredIslands: g.discoveredIslands || {},
+    fences: g.fences || 0, pigEvent: g.pigEvent || false, pigTargetPlot: g.pigTargetPlot ?? -1, pigDaysLeft: g.pigDaysLeft || 0,
   });
 }
 export function deserializeGame(json) {

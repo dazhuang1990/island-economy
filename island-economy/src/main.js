@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, buildBasket, buildBoat, buildWorkbench, buildWell, buildFurnace, smeltIron, buildTrader, craftSteelTool, getEfficiency, deepFish, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO, addFood, foodFreshness, workerHealthMul, useHerb, TECH_TREE, getCurrentGoal, ISLAND_DATA, arriveIsland } from './game.js';
+import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, buildBasket, buildFence, buildBoat, buildWorkbench, buildWell, buildFurnace, smeltIron, buildTrader, craftSteelTool, getEfficiency, deepFish, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO, addFood, foodFreshness, workerHealthMul, useHerb, TECH_TREE, getCurrentGoal, ISLAND_DATA, arriveIsland } from './game.js';
 
 const g = newGame();
 
@@ -1781,6 +1781,13 @@ function updateHUD() {
   // 采集篓状态
   const basketEl = $('baskets');
   if (basketEl) basketEl.textContent = g.baskets > 0 ? `🧺 ${g.baskets}/${CFG.BASKET_MAX} (🥔${g.root || 0})` : '未建';
+  // 围栏/野猪状态
+  const fenceEl = $('fenceInfo');
+  if (fenceEl) {
+    if (g.pigEvent) fenceEl.textContent = `🐗 野猪啃第${g.pigTargetPlot + 1}块田(${g.pigDaysLeft}天)`;
+    else if (g.fences > 0) fenceEl.textContent = `🛡️ 围栏保护${g.fences}块田`;
+    else fenceEl.textContent = '无围栏';
+  }
   $('net').textContent = (g.hasNet ? '渔网 ×2' : '徒手 ×1') + (g.craftingDay ? '　🧵 手在编网(成功率减半,睡一觉恢复)' : '');
   $('dock').textContent = g.dock ? '已建 ×3' : '未建';
   $('savings').textContent = g.granary ? g.savings : '—（先盖粮仓）';
@@ -2297,6 +2304,7 @@ addEventListener('resize', () => {
 
 // ---------- 按钮 ----------
 $('bBasket').onclick = () => { const r = buildBasket(g); flash(r.msg); updateHUD(); };
+$('bFence').onclick = () => { const r = buildFence(g); flash(r.msg); updateHUD(); };
 $('bNet').onclick = () => { const r = craftNet(g); flash(r.msg); };
 $('bHut').onclick = () => { const r = buildHut(g); if (r.ok) { spawnHut(); syncIslanders(); assignRoles(); } flash(r.msg); };
 $('bGranary').onclick = () => {
