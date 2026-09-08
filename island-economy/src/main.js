@@ -258,6 +258,103 @@ function buildTropicalScene() {
 }
 islandScenes.tropical = buildTropicalScene();
 
+// 创建火山岛场景
+function buildVolcanoScene() {
+  const s = new THREE.Scene();
+  s.background = new THREE.Color(0x5d4037);
+  s.fog = new THREE.Fog(0x5d4037, 25, 60);
+  s.add(new THREE.HemisphereLight(0xff8844, 0x331100, 0.7));
+  const sun3 = new THREE.DirectionalLight(0xff6600, 0.5);
+  sun3.position.set(10, 20, 5);
+  s.add(sun3);
+  // 火山地面(暗红)
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(20, 32), new THREE.MeshLambertMaterial({ color: 0x4e342e }));
+  ground.rotation.x = -Math.PI / 2;
+  s.add(ground);
+  // 火山(中心锥形)
+  const volcano = new THREE.Mesh(new THREE.ConeGeometry(8, 12, 8), new THREE.MeshLambertMaterial({ color: 0xd84315 }));
+  volcano.position.set(0, 6, -8);
+  s.add(volcano);
+  // 岩浆发光点
+  const lava = new THREE.Mesh(new THREE.SphereGeometry(1.5, 8, 6), new THREE.MeshLambertMaterial({ color: 0xff5722, emissive: 0xff3d00, emissiveIntensity: 0.5 }));
+  lava.position.set(0, 12, -8);
+  s.add(lava);
+  // 温泉(蓝色水池)
+  const spa = new THREE.Mesh(new THREE.CircleGeometry(2.5, 16), new THREE.MeshLambertMaterial({ color: 0x4dd0e1, transparent: true, opacity: 0.7 }));
+  spa.rotation.x = -Math.PI / 2;
+  spa.position.set(6, 0.05, 3);
+  s.add(spa);
+  // 矿脉(灰色岩石群)
+  for (let i = 0; i < 6; i++) {
+    const ore = new THREE.Mesh(new THREE.DodecahedronGeometry(0.6 + Math.random() * 0.4), new THREE.MeshLambertMaterial({ color: 0x9e9e9e }));
+    ore.position.set(-8 + Math.random() * 4, 0.5, 5 + Math.random() * 4);
+    s.add(ore);
+  }
+  // 土著矿工
+  const native = new THREE.Group();
+  const nHead = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), new THREE.MeshLambertMaterial({ color: 0xd7a86e }));
+  nHead.position.y = 1.8;
+  const nBody = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.3), new THREE.MeshLambertMaterial({ color: 0x795548 }));
+  nBody.position.y = 1.15;
+  native.add(nHead, nBody);
+  native.position.set(-2, 0, -3);
+  native.userData = { type: 'native', label: '与矿工交易' };
+  s.add(native);
+  return s;
+}
+islandScenes.volcano = buildVolcanoScene();
+
+// 创建冰雪岛场景
+function buildSnowScene() {
+  const s = new THREE.Scene();
+  s.background = new THREE.Color(0xcfd8dc);
+  s.fog = new THREE.Fog(0xcfd8dc, 20, 60);
+  s.add(new THREE.HemisphereLight(0xffffff, 0x78909c, 1.0));
+  const sun4 = new THREE.DirectionalLight(0xeeffff, 0.6);
+  sun4.position.set(10, 25, 10);
+  s.add(sun4);
+  // 雪地
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(20, 32), new THREE.MeshLambertMaterial({ color: 0xeceff1 }));
+  ground.rotation.x = -Math.PI / 2;
+  s.add(ground);
+  // 雪山
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + 0.5;
+    const mtn = new THREE.Mesh(new THREE.ConeGeometry(4 + i, 8 + i * 2, 6), new THREE.MeshLambertMaterial({ color: 0xb0bec5 }));
+    mtn.position.set(Math.cos(a) * 10, 4 + i, Math.sin(a) * 10);
+    s.add(mtn);
+  }
+  // 冰湖
+  const ice = new THREE.Mesh(new THREE.CircleGeometry(4, 16), new THREE.MeshLambertMaterial({ color: 0xb3e5fc, transparent: true, opacity: 0.8 }));
+  ice.rotation.x = -Math.PI / 2;
+  ice.position.set(-5, 0.05, 3);
+  s.add(ice);
+  // 冰块
+  for (let i = 0; i < 5; i++) {
+    const blk = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 0.8), new THREE.MeshLambertMaterial({ color: 0xe1f5fe, transparent: true, opacity: 0.7 }));
+    blk.position.set(-6 + Math.random() * 4, 0.3, 2 + Math.random() * 3);
+    s.add(blk);
+  }
+  // 煤矿(黑色岩石)
+  for (let i = 0; i < 4; i++) {
+    const coal = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5), new THREE.MeshLambertMaterial({ color: 0x212121 }));
+    coal.position.set(7 + Math.random() * 3, 0.4, -5 + Math.random() * 4);
+    s.add(coal);
+  }
+  // 土著猎人
+  const native = new THREE.Group();
+  const nHead = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), new THREE.MeshLambertMaterial({ color: 0xffcc80 }));
+  nHead.position.y = 1.8;
+  const nBody = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.3), new THREE.MeshLambertMaterial({ color: 0x546e7a }));
+  nBody.position.y = 1.15;
+  native.add(nHead, nBody);
+  native.position.set(3, 0, -2);
+  native.userData = { type: 'native', label: '与猎人交易' };
+  s.add(native);
+  return s;
+}
+islandScenes.snow = buildSnowScene();
+
 // 岛屿相机和玩家位置
 let islandCamPos = new THREE.Vector3(0, 5, 8);
 let islandPlayerPos = new THREE.Vector3(0, 0, 10);
