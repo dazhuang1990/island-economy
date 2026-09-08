@@ -183,6 +183,178 @@ function enterMain() {
   boatMesh.visible = false;
   renderer.setAnimationLoop(loop);
 }
+
+// ---------- 岛屿场景系统 ----------
+let currentIsland = null;
+const islandScenes = {};
+
+// 创建热带岛场景
+function buildTropicalScene() {
+  const s = new THREE.Scene();
+  s.background = new THREE.Color(0x87ceeb);
+  s.fog = new THREE.Fog(0x87ceeb, 30, 70);
+  s.add(new THREE.HemisphereLight(0xffffff, 0x4488aa, 0.9));
+  const sun2 = new THREE.DirectionalLight(0xffffff, 0.7);
+  sun2.position.set(15, 30, 10);
+  s.add(sun2);
+  // 地面(绿色草地)
+  const ground = new THREE.Mesh(
+    new THREE.CircleGeometry(20, 32),
+    new THREE.MeshLambertMaterial({ color: 0x4caf50 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  s.add(ground);
+  // 沙滩环
+  const beach = new THREE.Mesh(
+    new THREE.RingGeometry(18, 22, 32),
+    new THREE.MeshLambertMaterial({ color: 0xe2c290, side: THREE.DoubleSide })
+  );
+  beach.rotation.x = -Math.PI / 2;
+  beach.position.y = 0.01;
+  s.add(beach);
+  // 椰子树
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const r = 8 + Math.random() * 8;
+    const palm = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 3 + Math.random(), 6), new THREE.MeshLambertMaterial({ color: 0x8d6e63 }));
+    trunk.position.y = 1.5;
+    trunk.rotation.z = (Math.random() - 0.5) * 0.15;
+    const leaves = new THREE.Mesh(new THREE.SphereGeometry(1.5, 6, 4), new THREE.MeshLambertMaterial({ color: 0x2e7d32 }));
+    leaves.position.y = 3.5;
+    palm.add(trunk, leaves);
+    palm.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+    s.add(palm);
+  }
+  // 土著小屋
+  const hut = new THREE.Group();
+  const hutBody = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1.5, 2.5), new THREE.MeshLambertMaterial({ color: 0xd7ccc8 }));
+  hutBody.position.y = 1.75;
+  const hutRoof = new THREE.Mesh(new THREE.ConeGeometry(2, 1.2, 4), new THREE.MeshLambertMaterial({ color: 0x8d6e63 }));
+  hutRoof.position.y = 3;
+  hutRoof.rotation.y = Math.PI / 4;
+  hut.add(hutBody, hutRoof);
+  hut.position.set(0, 0, -5);
+  s.add(hut);
+  // 土著(简单方块小人)
+  const native = new THREE.Group();
+  const nHead = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), new THREE.MeshLambertMaterial({ color: 0xffcc80 }));
+  nHead.position.y = 1.8;
+  const nBody = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.3), new THREE.MeshLambertMaterial({ color: 0xff5722 }));
+  nBody.position.y = 1.15;
+  native.add(nHead, nBody);
+  native.position.set(2, 0, -4);
+  native.userData = { type: 'native', label: '与土著交易' };
+  s.add(native);
+  // 海水环绕
+  const sea = new THREE.Mesh(
+    new THREE.RingGeometry(22, 50, 32),
+    new THREE.MeshLambertMaterial({ color: 0x1565c0, transparent: true, opacity: 0.8, side: THREE.DoubleSide })
+  );
+  sea.rotation.x = -Math.PI / 2;
+  sea.position.y = -0.1;
+  s.add(sea);
+  return s;
+}
+islandScenes.tropical = buildTropicalScene();
+
+// 岛屿相机和玩家位置
+let islandCamPos = new THREE.Vector3(0, 5, 8);
+let islandPlayerPos = new THREE.Vector3(0, 0, 10);
+let lastIslandTime = performance.now();
+
+function enterIslandScene(islandId) {
+  currentScene = 'island';
+  currentIsland = islandId;
+  islandPlayerPos.set(0, 0, 10);
+  islandCamPos.set(0, 5, 18);
+  renderer.setAnimationLoop(islandLoop);
+  flash(`🏝️ 进入${ISLAND_DATA[islandId].name}!WASD移动,靠近土著按E交易,Esc离岛。`);
+}
+function exitIsland() {
+  currentScene = 'ocean';
+  currentIsland = null;
+  boatPos = { x: 0, z: 0 };
+  renderer.setAnimationLoop(oceanLoop);
+  flash('⛵ 离开岛屿,回到大海。');
+}
+
+// 贸易面板
+let tradeOpen = false;
+function openTrade(islandId) {
+  if (tradeOpen) return;
+  tradeOpen = true;
+  const data = ISLAND_DATA[islandId];
+  const overlay = $('sailOverlay');
+  const text = $('sailText');
+  overlay.style.display = 'flex';
+  overlay.classList.add('active');
+  overlay.style.background = 'rgba(10,20,30,0.92)';
+  text.innerHTML = `
+    <div style="text-align:center">
+      <div style="font-size:32px;margin-bottom:12px">${data.emoji} ${data.name} · 土著交易</div>
+      <div style="font-size:16px;color:#9fb8c6;margin-bottom:20px">${data.desc}</div>
+      <div style="margin-bottom:12px;color:#ffd766">🎁 他们愿意给你: ${data.gives}</div>
+      <div style="margin-bottom:20px;color:#8fe3a0">💰 他们想要: ${data.wants}</div>
+      <button onclick="window._doTrade()" style="padding:12px 28px;font-size:16px;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;margin:0 8px">🎁 接受礼物</button>
+      <button onclick="window._closeTrade()" style="padding:12px 28px;font-size:16px;background:#455a64;color:#fff;border:none;border-radius:8px;cursor:pointer;margin:0 8px">关闭</button>
+    </div>
+  `;
+}
+window._doTrade = function() {
+  const data = ISLAND_DATA[currentIsland];
+  if (!data) return;
+  const r = arriveIsland(g, currentIsland);
+  flash(r.msg);
+  updateHUD();
+  window._closeTrade();
+};
+window._closeTrade = function() {
+  tradeOpen = false;
+  const overlay = $('sailOverlay');
+  overlay.classList.remove('active');
+  overlay.style.display = 'none';
+  overlay.style.background = '';
+  $('sailText').textContent = '';
+};
+
+// 岛屿主循环
+function islandLoop() {
+  const now = performance.now(), dt = Math.min(0.05, (now - lastIslandTime) / 1000); lastIslandTime = now;
+  const speed = 6;
+  const fwd = new THREE.Vector3(Math.sin(islandCamYaw), 0, Math.cos(islandCamYaw));
+  const right = new THREE.Vector3(Math.cos(islandCamYaw), 0, -Math.sin(islandCamYaw));
+  if (keys['KeyW']) islandPlayerPos.addScaledVector(fwd, speed * dt);
+  if (keys['KeyS']) islandPlayerPos.addScaledVector(fwd, -speed * dt);
+  if (keys['KeyA']) islandPlayerPos.addScaledVector(right, -speed * dt);
+  if (keys['KeyD']) islandPlayerPos.addScaledVector(right, speed * dt);
+  // 边界限制
+  const d = Math.hypot(islandPlayerPos.x, islandPlayerPos.z);
+  if (d > 17) { islandPlayerPos.x *= 17 / d; islandPlayerPos.z *= 17 / d; }
+  islandPlayerPos.y = 0;
+  // 相机跟随
+  islandCamPos.lerp(new THREE.Vector3(
+    islandPlayerPos.x - Math.sin(islandCamYaw) * 6,
+    4,
+    islandPlayerPos.z - Math.cos(islandCamYaw) * 6
+  ), dt * 5);
+  camera.position.copy(islandCamPos);
+  camera.lookAt(islandPlayerPos.x, 1, islandPlayerPos.z);
+  // 靠近土著按E交易
+  const nativeDist = Math.hypot(islandPlayerPos.x - 2, islandPlayerPos.z + 4);
+  $('prompt').textContent = nativeDist < 3 ? '按 E 与土著交易' : '';
+  if (keys['KeyE'] && nativeDist < 3 && !tradeOpen) {
+    openTrade(currentIsland);
+  }
+  // Esc离岛
+  if (keys['Escape'] && !tradeOpen) {
+    exitIsland();
+    return;
+  }
+  const s = islandScenes[currentIsland];
+  if (s) renderer.render(s, camera);
+}
+let islandCamYaw = 0;
 function checkIslandDiscovery() {
   for (const isl of ISLANDS) {
     if (isl.discovered) continue;
@@ -220,8 +392,19 @@ function oceanLoop() {
   camera.lookAt(boatPos.x, 1, boatPos.z);
   // 海面波动
   oceanWater.position.y = Math.sin(now / 1200) * 0.1;
-  // 岛屿发现
+  // 岛屿发现+靠近提示
   checkIslandDiscovery();
+  // 检测靠近岛屿
+  let nearIsland = null;
+  for (const isl of ISLANDS) {
+    const dist = Math.hypot(boatPos.x - isl.x, boatPos.z - isl.z);
+    if (dist < isl.radius + 5) { nearIsland = isl; break; }
+  }
+  $('prompt').textContent = nearIsland ? `按 E 进入${nearIsland.name}` : '';
+  if (keys['KeyE'] && nearIsland) {
+    enterIslandScene(nearIsland.id);
+    return;
+  }
   // 漂浮物随浪漂动
   for (const f of oceanFloaters) {
     if (f.userData.collected) continue;
@@ -1249,6 +1432,14 @@ document.addEventListener('pointerlockerror', () => {
   flash('🖱️ 当前环境不支持鼠标锁定(预览面板常见),已切换为拖拽模式:按住左键拖动即可 360° 转视角。');
 });
 document.addEventListener('mousemove', (e) => {
+  if (currentScene === 'island') {
+    if (locked || dragging) {
+      const dx = locked ? e.movementX : (e.clientX - lastX);
+      islandCamYaw -= dx * LOOK_SENS;
+      if (!locked) { lastX = e.clientX; lastY = e.clientY; dragDist += Math.abs(dx); }
+    }
+    return;
+  }
   if (locked) { applyLook(e.movementX, e.movementY); return; }
   if (dragging) {
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
