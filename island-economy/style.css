@@ -236,6 +236,24 @@ canvas { display: block; }
   100% { opacity: 0; transform: scale(0.95) translateY(-20px); }
 }
 
+/* ==================== 航海动画 ==================== */
+#sailOverlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: linear-gradient(180deg, #0a1628 0%, #1a3a5c 40%, #1565c0 100%);
+  display: none; align-items: center; justify-content: center; flex-direction: column; gap: 16px;
+}
+#sailOverlay.active { display: flex; }
+#sailText {
+  font-size: 28px; color: #fff; font-weight: bold;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  animation: sailPulse 1.5s ease-in-out infinite;
+}
+@keyframes sailPulse {
+  0%,100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+.travel-btn { background: #0d47a1 !important; border: 1px solid #42a5f5 !important; }
+
 /* ==================== 触控设备 ==================== */
 #touchControls { display: none; }
 

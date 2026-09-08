@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, buildBasket, buildBoat, buildWorkbench, buildWell, buildFurnace, smeltIron, buildTrader, craftSteelTool, getEfficiency, deepFish, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO, addFood, foodFreshness, workerHealthMul, useHerb, TECH_TREE, getCurrentGoal } from './game.js';
+import { CFG, newGame, catchOne, plantCrop, harvestCrop, buildHut, buildGranary, buildDock, craftNet, buildBasket, buildBoat, buildWorkbench, buildWell, buildFurnace, smeltIron, buildTrader, craftSteelTool, getEfficiency, deepFish, advanceDay, tierOf, hutCapacity, hireVillager, dismissVillager, idleCount, fisherCapital, marginal, ROLE_NAME, interestRate, depositFish, withdrawFish, serializeGame, deserializeGame, WEATHER_INFO, addFood, foodFreshness, workerHealthMul, useHerb, TECH_TREE, getCurrentGoal, ISLAND_DATA, arriveIsland } from './game.js';
 
 const g = newGame();
 
@@ -1814,6 +1814,11 @@ function updateHUD() {
   show('bSmelt', g.hasFurnace);
   show('bTrader', g.hasFurnace && !g.hasTrader);
   show('bSteelTools', g.hasWorkbench && (g.refinedIron || 0) >= 2);
+  // 快速旅行按钮(出海探索发现的岛屿)
+  const disc = g.discoveredIslands || {};
+  show('bTravelTropical', disc.tropical);
+  show('bTravelVolcano', disc.volcano);
+  show('bTravelSnow', disc.snow);
   // 铁矿石 HUD
   const ironEl = $('ironInfo');
   if (ironEl) {
@@ -2327,6 +2332,39 @@ $('bSteelTools').onclick = () => {
   flash(r.msg);
   updateHUD();
 };
+
+// 航海动画+快速旅行
+function sailToIsland(islandId) {
+  if (window._sailAnim) return;
+  const data = ISLAND_DATA[islandId];
+  if (!data) return;
+  window._sailAnim = true;
+  const overlay = $('sailOverlay');
+  const text = $('sailText');
+  overlay.style.display = 'flex';
+  overlay.classList.add('active');
+  text.textContent = `⛵ 驶向${data.name}...`;
+  // 1.5秒后到达
+  setTimeout(() => {
+    const r = arriveIsland(g, islandId);
+    text.textContent = `${data.emoji} ${data.name}到了!`;
+    flash(r.msg);
+    updateHUD();
+    // 2秒后返航
+    setTimeout(() => {
+      text.textContent = '⛵ 返航中...';
+      setTimeout(() => {
+        overlay.classList.remove('active');
+        overlay.style.display = 'none';
+        window._sailAnim = false;
+        flash('🏠 回到主岛了。');
+      }, 1500);
+    }, 2000);
+  }, 1500);
+}
+$('bTravelTropical').onclick = () => sailToIsland('tropical');
+$('bTravelVolcano').onclick = () => sailToIsland('volcano');
+$('bTravelSnow').onclick = () => sailToIsland('snow');
 $('bDay').onclick = () => sleep();
 $('bWork').onclick = () => toggleWorkerPanel();
 // 鱼仓面板按钮

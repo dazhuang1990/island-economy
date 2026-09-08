@@ -49,6 +49,20 @@ export function getCurrentGoal(g) {
   return { tech: null, done: true, text: '🎉 所有科技已解锁!' };
 }
 
+// ---------- 岛屿信息 ----------
+export const ISLAND_DATA = {
+  tropical: { name: '热带岛', emoji: '🌴', desc: '椰林沙滩', gives: '香料×3 + 稀有水果×2', giveFn: (g) => { g.spice = (g.spice || 0) + 3; g.rareFruit = (g.rareFruit || 0) + 2; }, wants: '鱼×10 + 木头×15' },
+  volcano:  { name: '火山岛', emoji: '🌋', desc: '火山矿脉', gives: '铜矿×5', giveFn: (g) => { g.copper = (g.copper || 0) + 5; }, wants: '谷穗×10 + 石头×15' },
+  snow:     { name: '冰雪岛', emoji: '🏔️', desc: '雪山冰湖', gives: '冰块×3 + 煤矿×5', giveFn: (g) => { g.ice = (g.ice || 0) + 3; g.coal = (g.coal || 0) + 5; }, wants: '鱼×10 + 香料×5' },
+};
+// 到达岛屿(简化版:给予特产,后续P3做完整场景)
+export function arriveIsland(g, islandId) {
+  const data = ISLAND_DATA[islandId];
+  if (!data) return { ok: false, msg: '未知岛屿。' };
+  data.giveFn(g);
+  return { ok: true, msg: `${data.emoji} 到达${data.name}!获得了 ${data.gives}。(土著需求:${data.wants},后续开放贸易)` };
+}
+
 export const CFG = {
   // 采集产出
   FISH_PER_CATCH: [1, 2, 3],        // 徒手 / 渔网 / 码头
@@ -719,6 +733,8 @@ export function serializeGame(g) {
     ironFragments: g.ironFragments || 0, iron: g.iron || 0, refinedIron: g.refinedIron || 0,
     deepFishCount: g.deepFishCount || 0,
     steelTools: g.steelTools || {},
+    spice: g.spice || 0, rareFruit: g.rareFruit || 0, copper: g.copper || 0, ice: g.ice || 0, coal: g.coal || 0,
+    discoveredIslands: g.discoveredIslands || {},
   });
 }
 export function deserializeGame(json) {
