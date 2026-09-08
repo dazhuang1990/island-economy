@@ -170,13 +170,20 @@ let boatPos = { x: 0, z: 0 };
 let boatYaw = 0;
 let islandDiscoveryShown = {};
 function enterOcean() {
-  currentScene = 'ocean';
-  boatMesh.visible = true;
-  boatPos = { x: 0, z: 0 };
-  boatYaw = 0;
-  boatMesh.position.set(0, 0, 0);
-  boatMesh.rotation.y = 0;
-  renderer.setAnimationLoop(oceanLoop);
+  try {
+    currentScene = 'ocean';
+    boatMesh.visible = true;
+    boatPos = { x: 0, z: 0 };
+    boatYaw = 0;
+    boatMesh.position.set(0, 0, 0);
+    boatMesh.rotation.y = 0;
+    lastOcean = performance.now();
+    renderer.setAnimationLoop(oceanLoop);
+    flash('⛵ 进入大海!WASD控制船,探索海面发现新岛屿,Esc返航。');
+  } catch (err) {
+    console.error('[出海] 错误:', err);
+    flash('❌ 出海失败:' + err.message);
+  }
 }
 function enterMain() {
   currentScene = 'main';
@@ -879,6 +886,58 @@ function buildDockMesh() {
   grp.position.set(2.5, 0, 12.5);
   grp.rotation.y = 0; // 朝+z方向(海的方向)
   scene.add(grp); dockMesh = grp;
+}
+
+// 主岛上的船(造船后显示在码头旁)
+let mainBoatMesh = null;
+function spawnMainBoat() {
+  if (mainBoatMesh) return;
+  const grp = new THREE.Group();
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.5, 3.5), new THREE.MeshLambertMaterial({ color: 0x8d6e63 }));
+  hull.position.y = 0.6;
+  hull.castShadow = true;
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.5, 6), new THREE.MeshLambertMaterial({ color: 0x5d4037 }));
+  mast.position.y = 2;
+  const sail = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.8), new THREE.MeshLambertMaterial({ color: 0xfafafa, side: THREE.DoubleSide }));
+  sail.position.set(0.6, 2.2, 0);
+  sail.rotation.y = Math.PI / 2;
+  grp.add(hull, mast, sail);
+  grp.position.set(4.5, 0, 13); // 码头旁
+  scene.add(grp);
+  mainBoatMesh = grp;
+}
+
+// 围栏模型(木栅栏段)
+const fenceMeshes = [];
+function spawnFenceModels() {
+  // 清除旧围栏
+  for (const f of fenceMeshes) scene.remove(f);
+  fenceMeshes.length = 0;
+  // 给每块有围栏的田加栅栏
+  const fenceCount = Math.min(g.fences || 0, plots.length);
+  for (let i = 0; i < fenceCount; i++) {
+    const p = plots[i];
+    if (!p) continue;
+    const grp = new THREE.Group();
+    const woodMat = new THREE.MeshLambertMaterial({ color: 0x8d6e63 });
+    // 四根柱子
+    for (const [ox, oz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.8, 4), woodMat);
+      post.position.set(ox, 0.4, oz);
+      grp.add(post);
+    }
+    // 四根横杆
+    for (const [ox1, oz1, ox2, oz2] of [[-0.8, -0.8, 0.8, -0.8], [-0.8, 0.8, 0.8, 0.8], [-0.8, -0.8, -0.8, 0.8], [0.8, -0.8, 0.8, 0.8]]) {
+      const dx = ox2 - ox1, dz = oz2 - oz1;
+      const len = Math.hypot(dx, dz);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.06, 0.06), woodMat);
+      rail.position.set((ox1 + ox2) / 2, 0.65, (oz1 + oz2) / 2);
+      grp.add(rail);
+    }
+    grp.position.set(p.position.x, p.position.y, p.position.z);
+    scene.add(grp);
+    fenceMeshes.push(grp);
+  }
 }
 
 // ---------- 岛民(方块小人:四肢枢轴摆动 + 职业配色 + 头顶徽章 + 工作状态机) ----------
@@ -2225,6 +2284,8 @@ function loadGameFromStorage() {
   for (const hd of (s.huts || [])) spawnHut([hd.x, hd.z]);
   if (g.granary && !granaryMesh) buildGranaryMesh();
   if (g.dock && !dockMesh) buildDockMesh();
+  if (g.hasBoat) spawnMainBoat();
+  if (g.fences > 0) spawnFenceModels();
   // 鱼群
   while (fishes.length) { scene.remove(fishes.pop()); }
   for (let i = 0; i < 10; i++) spawnFish();
@@ -2592,7 +2653,7 @@ addEventListener('resize', () => {
 
 // ---------- 按钮 ----------
 $('bBasket').onclick = () => { const r = buildBasket(g); flash(r.msg); updateHUD(); };
-$('bFence').onclick = () => { const r = buildFence(g); flash(r.msg); updateHUD(); };
+$('bFence').onclick = () => { const r = buildFence(g); if (r.ok) spawnFenceModels(); flash(r.msg); updateHUD(); };
 $('bNet').onclick = () => { const r = craftNet(g); flash(r.msg); };
 $('bHut').onclick = () => { const r = buildHut(g); if (r.ok) { spawnHut(); syncIslanders(); assignRoles(); } flash(r.msg); };
 $('bGranary').onclick = () => {
@@ -2605,7 +2666,7 @@ $('bGranary').onclick = () => {
   flash(r.msg);
 };
 $('bDock').onclick = () => { const r = buildDock(g); if (r.ok) buildDockMesh(); flash(r.msg); updateHUD(); };
-$('bBoat').onclick = () => { const r = buildBoat(g); flash(r.msg); updateHUD(); };
+$('bBoat').onclick = () => { const r = buildBoat(g); if (r.ok) spawnMainBoat(); flash(r.msg); updateHUD(); };
 $('bDeepFish').onclick = () => { const r = deepFish(g); flash(r.msg); updateHUD(); };
 $('bSail').onclick = () => {
   if (g.weather === 'stormy') { flash('⛈️ 暴风雨天气无法出海!'); return; }
