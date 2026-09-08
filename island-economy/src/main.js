@@ -127,23 +127,52 @@ for (const isl of ISLANDS) {
 
 // 玩家的船
 const boatMesh = new THREE.Group();
-const boatBody = new THREE.Mesh(
-  new THREE.BoxGeometry(2, 0.5, 4),
-  new THREE.MeshLambertMaterial({ color: 0x8d6e63 })
-);
-boatBody.position.y = 0.3;
-const boatMast = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.08, 0.08, 3, 6),
-  new THREE.MeshLambertMaterial({ color: 0x5d4037 })
-);
-boatMast.position.y = 2;
-const boatSail = new THREE.Mesh(
-  new THREE.PlaneGeometry(1.5, 2),
-  new THREE.MeshLambertMaterial({ color: 0xfafafa, side: THREE.DoubleSide })
-);
-boatSail.position.set(0.8, 2.2, 0);
-boatSail.rotation.y = Math.PI / 2;
-boatMesh.add(boatBody, boatMast, boatSail);
+// 大海场景的船(精细版,和主岛船一致)
+{
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x8d6e63 });
+  const darkWood = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
+  const whiteMat = new THREE.MeshLambertMaterial({ color: 0xfafafa, side: THREE.DoubleSide });
+  const ropeMat = new THREE.MeshLambertMaterial({ color: 0xa1887f });
+  // 船底
+  const keel = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.15, 4), darkWood);
+  keel.position.y = 0.35;
+  // 左右船舷
+  for (const side of [-1, 1]) {
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.6, 3.8), woodMat);
+    plank.position.set(side * 0.85, 0.65, 0);
+    plank.castShadow = true;
+    boatMesh.add(plank);
+  }
+  // 船头尖角
+  const bow = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1, 4), woodMat);
+  bow.rotation.x = Math.PI / 2;
+  bow.position.set(0, 0.6, 2.2);
+  boatMesh.add(bow);
+  // 船尾板
+  const stern = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.5, 0.12), woodMat);
+  stern.position.set(0, 0.6, -1.9);
+  boatMesh.add(stern);
+  // 甲板
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.08, 3.2), woodMat);
+  deck.position.y = 0.55;
+  // 桅杆+帆+横杆
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 3, 6), darkWood);
+  mast.position.y = 2.2;
+  const sail = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 2), whiteMat);
+  sail.position.set(0.7, 2.4, 0);
+  sail.rotation.y = Math.PI / 2;
+  const yard = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.8, 4), darkWood);
+  yard.rotation.z = Math.PI / 2;
+  yard.position.set(0.7, 3.2, 0);
+  // 绳索
+  for (const [sx, sz] of [[-0.3, 1.5], [0.3, 1.5], [0, -1.2]]) {
+    const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 2.5, 4), ropeMat);
+    rope.position.set(sx * 0.5, 1.5, sz * 0.5);
+    rope.rotation.z = sx * 0.3;
+    boatMesh.add(rope);
+  }
+  boatMesh.add(keel, deck, mast, sail, yard);
+}
 boatMesh.visible = false;
 oceanScene.add(boatMesh);
 
@@ -893,46 +922,116 @@ let mainBoatMesh = null;
 function spawnMainBoat() {
   if (mainBoatMesh) return;
   const grp = new THREE.Group();
-  const hull = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.5, 3.5), new THREE.MeshLambertMaterial({ color: 0x8d6e63 }));
-  hull.position.y = 0.6;
-  hull.castShadow = true;
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.5, 6), new THREE.MeshLambertMaterial({ color: 0x5d4037 }));
-  mast.position.y = 2;
-  const sail = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.8), new THREE.MeshLambertMaterial({ color: 0xfafafa, side: THREE.DoubleSide }));
-  sail.position.set(0.6, 2.2, 0);
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x8d6e63 });
+  const darkWood = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
+  const whiteMat = new THREE.MeshLambertMaterial({ color: 0xfafafa, side: THREE.DoubleSide });
+  const ropeMat = new THREE.MeshLambertMaterial({ color: 0xa1887f });
+  // 船底(V形)
+  const keel = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.15, 4), darkWood);
+  keel.position.y = 0.35;
+  // 左右船舷(弧形板)
+  for (const side of [-1, 1]) {
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.6, 3.8), woodMat);
+    plank.position.set(side * 0.85, 0.65, 0);
+    plank.castShadow = true;
+    grp.add(plank);
+  }
+  // 船头尖角
+  const bow = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1, 4), woodMat);
+  bow.rotation.x = Math.PI / 2;
+  bow.position.set(0, 0.6, 2.2);
+  grp.add(bow);
+  // 船尾板
+  const stern = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.5, 0.12), woodMat);
+  stern.position.set(0, 0.6, -1.9);
+  grp.add(stern);
+  // 甲板
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.08, 3.2), woodMat);
+  deck.position.y = 0.55;
+  deck.receiveShadow = true;
+  // 桅杆
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 3, 6), darkWood);
+  mast.position.y = 2.2;
+  // 帆(三角形)
+  const sail = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 2), whiteMat);
+  sail.position.set(0.7, 2.4, 0);
   sail.rotation.y = Math.PI / 2;
-  grp.add(hull, mast, sail);
-  grp.position.set(4.5, 0, 13); // 码头旁
+  // 横杆
+  const yard = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.8, 4), darkWood);
+  yard.rotation.z = Math.PI / 2;
+  yard.position.set(0.7, 3.2, 0);
+  // 绳索(3根)
+  for (const [sx, sz] of [[-0.3, 1.5], [0.3, 1.5], [0, -1.2]]) {
+    const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 2.5, 4), ropeMat);
+    rope.position.set(sx * 0.5, 1.5, sz * 0.5);
+    rope.rotation.z = sx * 0.3;
+    grp.add(rope);
+  }
+  // 船锚(小细节)
+  const anchor = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.3, 0.04), new THREE.MeshLambertMaterial({ color: 0x455a64 }));
+  anchor.position.set(-0.9, 0.4, -1.5);
+  grp.add(anchor);
+  grp.add(keel, deck, mast, sail, yard);
+  grp.position.set(4.5, 0, 13);
   scene.add(grp);
   mainBoatMesh = grp;
 }
 
-// 围栏模型(木栅栏段)
+// 围栏模型(完全围住田地:密集木桩+上下横杆)
 const fenceMeshes = [];
 function spawnFenceModels() {
-  // 清除旧围栏
   for (const f of fenceMeshes) scene.remove(f);
   fenceMeshes.length = 0;
-  // 给每块有围栏的田加栅栏
   const fenceCount = Math.min(g.fences || 0, plots.length);
   for (let i = 0; i < fenceCount; i++) {
     const p = plots[i];
     if (!p) continue;
     const grp = new THREE.Group();
     const woodMat = new THREE.MeshLambertMaterial({ color: 0x8d6e63 });
-    // 四根柱子
-    for (const [ox, oz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) {
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.8, 4), woodMat);
-      post.position.set(ox, 0.4, oz);
-      grp.add(post);
+    const darkMat = new THREE.MeshLambertMaterial({ color: 0x6d4c41 });
+    const halfW = 0.9; // 围栏半宽
+    const postH = 0.7;
+    const postCount = 5; // 每边5根桩
+    // 四边木桩+横杆
+    const sides = [
+      { axis: 'x', start: -halfW, end: halfW, fixed: -halfW },  // 前
+      { axis: 'x', start: -halfW, end: halfW, fixed: halfW },   // 后
+      { axis: 'z', start: -halfW, end: halfW, fixed: -halfW },  // 左
+      { axis: 'z', start: -halfW, end: halfW, fixed: halfW },   // 右
+    ];
+    for (const side of sides) {
+      for (let j = 0; j < postCount; j++) {
+        const t = j / (postCount - 1);
+        const pos = side.start + (side.end - side.start) * t;
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, postH, 4), darkMat);
+        if (side.axis === 'x') post.position.set(pos, postH / 2, side.fixed);
+        else post.position.set(side.fixed, postH / 2, pos);
+        post.castShadow = true;
+        grp.add(post);
+      }
+      // 上横杆
+      const railTop = new THREE.Mesh(
+        new THREE.BoxGeometry(side.axis === 'x' ? halfW * 2 : 0.06, 0.05, side.axis === 'z' ? halfW * 2 : 0.06),
+        woodMat
+      );
+      if (side.axis === 'x') railTop.position.set(0, postH * 0.85, side.fixed);
+      else railTop.position.set(side.fixed, postH * 0.85, 0);
+      grp.add(railTop);
+      // 下横杆
+      const railBot = railTop.clone();
+      if (side.axis === 'x') railBot.position.y = postH * 0.35;
+      else railBot.position.y = postH * 0.35;
+      grp.add(railBot);
     }
-    // 四根横杆
-    for (const [ox1, oz1, ox2, oz2] of [[-0.8, -0.8, 0.8, -0.8], [-0.8, 0.8, 0.8, 0.8], [-0.8, -0.8, -0.8, 0.8], [0.8, -0.8, 0.8, 0.8]]) {
-      const dx = ox2 - ox1, dz = oz2 - oz1;
-      const len = Math.hypot(dx, dz);
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.06, 0.06), woodMat);
-      rail.position.set((ox1 + ox2) / 2, 0.65, (oz1 + oz2) / 2);
-      grp.add(rail);
+    // 四角竖桩(稍高,带尖顶)
+    for (const [cx, cz] of [[-halfW, -halfW], [halfW, -halfW], [-halfW, halfW], [halfW, halfW]]) {
+      const cornerPost = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, postH + 0.15, 4), darkMat);
+      cornerPost.position.set(cx, (postH + 0.15) / 2, cz);
+      cornerPost.castShadow = true;
+      // 尖顶
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.12, 4), darkMat);
+      tip.position.set(cx, postH + 0.2, cz);
+      grp.add(cornerPost, tip);
     }
     grp.position.set(p.position.x, p.position.y, p.position.z);
     scene.add(grp);
