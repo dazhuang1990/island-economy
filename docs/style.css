@@ -1,0 +1,320 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; font-family: "Microsoft YaHei", sans-serif; }
+#app { position: fixed; inset: 0; }
+canvas { display: block; }
+
+#crosshair {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  color: #fff; font-size: 24px; text-shadow: 0 0 3px #000; pointer-events: none; z-index: 5;
+}
+
+#prompt {
+  position: fixed; left: 50%; top: 56%; transform: translateX(-50%);
+  color: #ffe082; font-size: 15px; font-weight: bold; text-shadow: 0 1px 3px #000;
+  pointer-events: none; z-index: 6;
+}
+
+#hud, #logbox {
+  position: fixed; top: 12px; background: rgba(20, 30, 40, 0.72); color: #e8f0f5;
+  padding: 10px 14px; border-radius: 8px; font-size: 14px; line-height: 1.7; z-index: 10;
+  backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.12);
+}
+#hud { left: 12px; min-width: 240px; }
+.weather-row { font-size: 16px; font-weight: bold; color: #ffd766; margin-bottom: 4px; letter-spacing: 1px; }
+#logbox { right: 12px; width: 260px; }
+.title { font-weight: bold; margin-bottom: 6px; color: #ffd766; }
+.row b { color: #8fe3a0; }
+
+#bar {
+  position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 8px; z-index: 10; flex-wrap: wrap; justify-content: center;
+}
+#bar button {
+  background: #2e7d32; color: #fff; border: none; padding: 10px 14px; border-radius: 6px;
+  font-size: 14px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 0 #1b5e20;
+}
+#bar button:hover { background: #388e3c; }
+#bar button:active { transform: translateY(2px); box-shadow: none; }
+
+#help {
+  position: fixed; bottom: 64px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.5); color: #cfe; font-size: 12px; padding: 6px 12px;
+  border-radius: 6px; max-width: 92vw; text-align: center; z-index: 9;
+}
+
+#overlay {
+  position: fixed; inset: 0; background: rgba(10,20,30,0.85); z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+}
+#overlay .card {
+  background: #fff; color: #222; max-width: 460px; padding: 28px 32px; border-radius: 12px;
+  text-align: center; line-height: 1.8;
+}
+#overlay h1 { margin-bottom: 12px; }
+#overlay p { font-size: 15px; margin-bottom: 10px; }
+#overlay .small { font-size: 13px; color: #666; }
+#overlay button {
+  margin-top: 14px; background: #2e7d32; color: #fff; border: none; padding: 12px 26px;
+  border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold;
+}
+#overlay.hidden { display: none; }
+
+/* 视角灵敏度(左下) */
+#sensbox {
+  position: fixed; bottom: 14px; left: 12px; width: 210px;
+  background: rgba(20, 30, 40, 0.78); color: #e8f0f5; padding: 8px 12px;
+  border-radius: 8px; font-size: 12px; z-index: 10;
+  backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.12);
+}
+#sensbox .srow { font-weight: bold; color: #ffd766; margin-bottom: 4px; }
+#sensbox input[type=range] { width: 100%; cursor: pointer; accent-color: #29b6f6; }
+#sensbox .stip { color: #9fb8c6; margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+#sensbox .stip b { color: #8fe3a0; }
+#sensbox button {
+  background: #455a64; color: #fff; border: none; padding: 2px 6px;
+  border-radius: 4px; font-size: 11px; cursor: pointer;
+}
+#sensbox button:hover { background: #546e7a; }
+
+/* 岛民事务所 */
+#workerPanel {
+  position: fixed; top: 285px; right: 12px; width: 260px;
+  background: rgba(20, 30, 40, 0.82); color: #e8f0f5; padding: 10px 14px;
+  border-radius: 8px; font-size: 13px; line-height: 1.7; z-index: 11;
+  backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.12);
+}
+#workerPanel.hidden { display: none; }
+#workerPanel .tip { color: #9fb8c6; font-size: 12px; margin: 4px 0 8px; }
+#wpHire { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+#wpHire button {
+  background: #1565c0; color: #fff; border: none; padding: 7px 4px; border-radius: 6px;
+  font-size: 12px; cursor: pointer; font-weight: bold; display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+#wpHire button:hover:not(:disabled) { background: #1976d2; }
+#wpHire button:disabled { background: #455a64; color: #90a4ae; cursor: not-allowed; }
+#wpHire .cost { font-size: 11px; font-weight: normal; color: #bbdefb; }
+#wpHire button:disabled .cost { color: #90a4ae; }
+#wpList .wrow {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 3px 0; border-top: 1px dashed rgba(255,255,255,0.15);
+}
+#wpList .wrow button {
+  background: #8d6e63; color: #fff; border: none; padding: 3px 10px;
+  border-radius: 4px; font-size: 12px; cursor: pointer;
+}
+#wpList .wrow button:hover { background: #a1887f; }
+#wpList .empty { color: #90a4ae; font-size: 12px; }
+
+/* 鱼仓面板(居中弹窗,与岛民事务所风格统一但更大) */
+#granaryPanel {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 320px; background: rgba(20, 30, 40, 0.92); color: #e8f0f5;
+  padding: 14px 18px; border-radius: 12px; font-size: 13px; line-height: 1.7;
+  z-index: 20; backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+#granaryPanel.hidden { display: none; }
+#granaryPanel .tip { color: #9fb8c6; font-size: 12px; margin: 4px 0 12px; }
+#granaryPanel .gp-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 4px 0; border-top: 1px dashed rgba(255,255,255,0.15);
+}
+#granaryPanel .gp-row:first-of-type { border-top: none; }
+#granaryPanel .gp-row b { color: #ffd766; font-size: 15px; }
+#granaryPanel .gp-hint {
+  margin: 10px 0; padding: 6px 10px; background: rgba(255, 215, 102, 0.12);
+  border-left: 3px solid #ffd766; border-radius: 4px; font-size: 12px; color: #ffe082;
+}
+#granaryPanel input[type=number] {
+  width: 100%; padding: 8px 10px; margin: 8px 0 4px;
+  background: rgba(255,255,255,0.08); color: #e8f0f5; border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 6px; font-size: 14px; box-sizing: border-box;
+}
+#granaryPanel input[type=number]:focus { outline: 2px solid #42a5f5; }
+#granaryPanel .gp-btns { display: flex; gap: 6px; margin-top: 10px; }
+#granaryPanel .gp-btns button {
+  flex: 1; padding: 8px; border: none; border-radius: 6px;
+  font-size: 13px; cursor: pointer; font-weight: bold;
+}
+#granaryPanel .gp-deposit { background: #1565c0; color: #fff; }
+#granaryPanel .gp-deposit:hover { background: #1976d2; }
+#granaryPanel .gp-withdraw { background: #ef6c00; color: #fff; }
+#granaryPanel .gp-withdraw:hover { background: #f57c00; }
+#granaryPanel #gpClose { background: #455a64; color: #fff; flex: 0 0 90px; }
+#granaryPanel #gpClose:hover { background: #546e7a; }
+
+/* ==================== 目标追踪 ==================== */
+#goalPanel {
+  position: fixed; top: 12px; right: 290px;
+  background: rgba(20, 30, 40, 0.85); color: #e8f0f5;
+  padding: 8px 14px; border-radius: 8px; font-size: 13px; z-index: 10;
+  backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.12);
+  max-width: 220px; cursor: pointer;
+}
+#goalPanel:hover { border-color: rgba(255,215,102,0.5); }
+#goalCurrent { font-weight: bold; color: #ffd766; }
+#goalCurrent span { color: #8fe3a0; }
+#goalTree {
+  margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.15);
+  max-height: 300px; overflow-y: auto;
+}
+#goalTree.hidden { display: none; }
+.tech-node {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 4px 0; font-size: 12px; gap: 8px;
+}
+.tech-node .tech-name { font-weight: bold; min-width: 60px; }
+.tech-node .tech-desc { color: #9fb8c6; flex: 1; }
+.tech-node .tech-status { font-size: 11px; min-width: 50px; text-align: right; }
+.tech-done { color: #8fe3a0; }
+.tech-active { color: #ffd766; }
+.tech-locked { color: #546e7a; }
+.tech-phase { font-size: 10px; color: #546e7a; margin-top: 6px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.05); }
+
+/* ==================== 昼夜过渡动画 ==================== */
+#dayNightOverlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: #000; opacity: 0; pointer-events: none;
+  display: none; align-items: center; justify-content: center;
+  flex-direction: column; gap: 10px;
+}
+#dayNightOverlay.active { opacity: 1; pointer-events: auto; }
+#dayNightOverlay.brighten { opacity: 0; transition: opacity 1.2s ease-in-out; }
+
+#dnMoon {
+  font-size: 80px; opacity: 0;
+  animation: none;
+  filter: drop-shadow(0 0 20px rgba(255,255,150,0.6));
+}
+#dnMoon.show {
+  animation: moonRise 1s ease-out forwards;
+}
+@keyframes moonRise {
+  0% { opacity: 0; transform: translateY(60px) scale(0.5); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+#dnZzz {
+  font-size: 36px; color: #fff; opacity: 0;
+  letter-spacing: 8px; font-weight: bold;
+  text-shadow: 0 0 10px rgba(255,255,255,0.5);
+}
+#dnZzz.show {
+  animation: zzzFloat 1.2s ease-in-out infinite;
+}
+@keyframes zzzFloat {
+  0% { opacity: 0.5; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-15px); }
+  100% { opacity: 0.5; transform: translateY(0); }
+}
+
+#dnSun {
+  font-size: 80px; opacity: 0;
+  filter: drop-shadow(0 0 30px rgba(255,200,50,0.8));
+}
+#dnSun.show {
+  animation: sunRise 1.2s ease-out forwards;
+}
+@keyframes sunRise {
+  0% { opacity: 0; transform: translateY(80px) scale(0.3); }
+  60% { opacity: 1; transform: translateY(-10px) scale(1.1); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+#dnDayNum {
+  font-size: 28px; color: #ffd766; font-weight: bold; opacity: 0;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+}
+#dnDayNum.show {
+  animation: dayFade 1.5s ease-in-out forwards;
+}
+@keyframes dayFade {
+  0% { opacity: 0; transform: scale(0.8); }
+  30% { opacity: 1; transform: scale(1.05); }
+  70% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.95) translateY(-20px); }
+}
+
+/* ==================== 航海动画 ==================== */
+#sailOverlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: linear-gradient(180deg, #0a1628 0%, #1a3a5c 40%, #1565c0 100%);
+  display: none; align-items: center; justify-content: center; flex-direction: column; gap: 16px;
+}
+#sailOverlay.active { display: flex; }
+#sailText {
+  font-size: 28px; color: #fff; font-weight: bold;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  animation: sailPulse 1.5s ease-in-out infinite;
+}
+@keyframes sailPulse {
+  0%,100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+.travel-btn { background: #0d47a1 !important; border: 1px solid #42a5f5 !important; }
+
+/* ==================== 触控设备 ==================== */
+#touchControls { display: none; }
+
+/* 虚拟摇杆 */
+#joystickArea {
+  position: fixed; bottom: 20px; left: 20px;
+  width: 120px; height: 120px; border-radius: 50%;
+  background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.3);
+  z-index: 30; touch-action: none;
+}
+#joystickKnob {
+  position: absolute; width: 50px; height: 50px; border-radius: 50%;
+  background: rgba(255,255,255,0.5); border: 2px solid rgba(255,255,255,0.7);
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  pointer-events: none; transition: none;
+}
+
+/* 触控动作按钮 */
+#touchBtns {
+  position: fixed; bottom: 20px; right: 20px;
+  display: flex; flex-direction: column; gap: 10px; z-index: 30;
+}
+#touchBtns button {
+  width: 64px; height: 64px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.4);
+  background: rgba(46,125,50,0.7); color: #fff; font-size: 22px; font-weight: bold;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+  display: flex; align-items: center; justify-content: center;
+}
+#touchBtns button:active { background: rgba(46,125,50,1); transform: scale(0.92); }
+#touchBtns button.small { width: 50px; height: 50px; font-size: 16px; background: rgba(69,90,100,0.7); }
+
+/* 移动端布局调整 */
+@media (max-width: 768px) {
+  #hud { font-size: 12px; padding: 6px 10px; min-width: 180px; top: 8px; left: 8px; }
+  #hud .row { line-height: 1.5; }
+  #logbox { width: 180px; font-size: 11px; top: 8px; right: 8px; padding: 6px 8px; max-height: 120px; overflow-y: auto; }
+  #goalPanel { right: 8px; top: 140px; max-width: 180px; font-size: 12px; }
+  #bar { bottom: 8px; gap: 4px; }
+  #bar button { padding: 8px 10px; font-size: 12px; }
+  #help { font-size: 10px; bottom: 50px; padding: 4px 8px; }
+  #sensbox { display: none; }
+  #overlay .card { max-width: 90vw; padding: 20px; }
+  #overlay .card h1 { font-size: 22px; }
+  #overlay .card p { font-size: 13px; }
+  #crosshair { font-size: 18px; }
+  #prompt { font-size: 12px; top: 52%; }
+  #granaryPanel { width: 280px; padding: 10px 14px; }
+  #workerPanel { width: 220px; top: 200px; }
+  #touchControls { display: block; }
+  #bar { display: none; }
+}
+
+@media (max-width: 480px) {
+  #hud { font-size: 11px; min-width: 150px; }
+  #logbox { width: 150px; font-size: 10px; }
+  #bar button { padding: 6px 8px; font-size: 11px; }
+  #overlay .card { padding: 16px; }
+}
+
+/* 平板横屏 */
+@media (min-width: 769px) and (max-width: 1024px) and (orientation: landscape) {
+  #touchControls { display: block; }
+  #bar { display: none; }
+}

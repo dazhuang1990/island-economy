@@ -1,0 +1,16 @@
+﻿<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body>
+<div id="result">Testing...</div>
+<script type="module">
+try {
+  const mod = await import('./src/main.js');
+  document.getElementById('result').textContent = 'Module loaded OK';
+} catch(e) {
+  document.getElementById('result').textContent = 'ERROR: ' + e.message + '\n' + e.stack;
+  console.error('IMPORT ERROR:', e);
+}
+</script>
+</body>
+</html>
